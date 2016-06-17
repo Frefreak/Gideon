@@ -90,6 +90,16 @@ saveToken r = do
             if isLeft r then let Left r' = r in return (Left r')
                 else return n
 
+updateToken :: LBS.ByteString -> IO ()
+updateToken r = do
+    let accessToken = r ^. key "access_token" . _String
+        refreshToken = r ^. key "refresh_token" . _String
+    sql <- getSqlUser
+    runSqlite sql $ do
+        runMigration migrateAll
+        updateWhere [CharacterRefreshToken ==. T.unpack refreshToken]
+            [CharacterAccessToken =. T.unpack accessToken]
+
 data CharacterInfo = CharacterInfo
     { characterID :: Scientific
     , characterName :: String
@@ -124,10 +134,65 @@ getAccessTokenInitial = do
     uniqState <- generateRandomState
     let authUrl = composeUrl urlSSO params
         params = composeParams callbackUri clientID allScope uniqState
-    runCommand $ "xdg-open \"" ++ authUrl ++ "\""
+    h <- runCommand $ "xdg-open \"" ++ authUrl ++ "\""
+    waitForProcess h
     readyFlag <- newEmptyMVar
     tid <- forkIO $ run callbackPort $
                 serve callbackAPI (callbackServer sec readyFlag uniqState)
     takeMVar readyFlag
     threadDelay 1000000 -- delay 1s
     killThread tid
+
+getAccessTokenRefresh :: String -> IO String
+getAccessTokenRefresh refresh = do
+    sec <- getSecretKey
+    let opts = gideonOpt & auth ?~ basicAuth (BS.pack clientID) (BS.pack sec)
+        toPost = ["grant_type" := ("refresh_token" :: String),
+                    "refresh_token" := refresh]
+    r <- postWith opts urlVerify toPost
+    updateToken (r ^. responseBody)
+    return . T.unpack $ r ^. responseBody . key "access_token" . _String
+
+getCharacterDb :: String -> IO (Maybe Character)
+getCharacterDb username = do
+    sql <- getSqlUser
+    r <- runSqlite sql $ do
+        runMigration migrateAll
+        selectFirst [CharacterUsername ==. username] []
+    case r of
+        Nothing -> return Nothing
+        Just (Entity _ char) -> return (Just char)
+
+getAccessTokenDb :: String -> IO (Maybe String)
+getAccessTokenDb username = do
+    ch <- getCharacterDb username
+    return (characterAccessToken <$> ch)
+
+getRefreshTokenDb :: String -> IO (Maybe String)
+getRefreshTokenDb username = do
+    ch <- getCharacterDb username
+    return (characterRefreshToken <$> ch)
+
+performAction :: String -> (String -> IO (Maybe a)) -> IO (Maybe a)
+performAction username action = do
+    let handler :: SomeException -> IO String
+        handler _ = return ""
+    acc <- getAccessTokenDb username
+    case acc of
+        Nothing -> return Nothing
+        Just acc' -> do
+            result <- action acc'
+            case result of
+                Just r -> return result
+                Nothing -> do
+                    ref <- getRefreshTokenDb username
+                    case ref of
+                        Nothing -> return Nothing
+                        Just ref' -> do
+                            r <- catch (getAccessTokenRefresh ref') handler
+                            if null r then return Nothing else
+                                action r
+
+
+
+
