@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
-
+{-# LANGUAGE ScopedTypeVariables #-}
 module Auth where
 
 import Data.List (intercalate)
@@ -13,6 +13,7 @@ import Servant
 import Network.Wai.Handler.Warp
 import Control.Concurrent
 import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Except
 import Network.Wreq hiding (Proxy)
 import Control.Lens.Operators
 import Data.Maybe
@@ -27,10 +28,12 @@ import GHC.Generics
 import Database.Persist.Sqlite
 import Database.Persist
 import Data.Scientific
+import qualified Data.Yaml as Y
 
 import Constant
 import Database
 import Util
+import Types
 
 type Param = (String, String)
 type Params = [Param]
@@ -72,8 +75,17 @@ verifyAuthCode code sec = do
     r <- try $ postWith opts urlVerify toPost
     case r of
         Left err -> return (Left err)
-        Right r' -> saveToken (r' ^. responseBody) >>=
-                        \n -> return (("Hello " ++) <$>  n)
+        Right r' -> saveToken (r' ^. responseBody) >>= \n ->
+                    case n of
+                        Left err -> return (Left err)
+                        Right n' -> do
+                            saveCurrentUser n'
+                            return (Right $ "Hello " ++ n')
+
+saveCurrentUser :: String -> IO ()
+saveCurrentUser n = do
+    meta <- getMetaDataFile
+    Y.encodeFile meta (GideonMetadata n)
 
 saveToken :: LBS.ByteString -> IO (Either SomeException String)
 saveToken r = do
@@ -143,56 +155,54 @@ getAccessTokenInitial = do
     threadDelay 1000000 -- delay 1s
     killThread tid
 
-getAccessTokenRefresh :: String -> IO String
+getAccessTokenRefresh :: String -> GideonMonad String
 getAccessTokenRefresh refresh = do
-    sec <- getSecretKey
+    sec <- lift getSecretKey
     let opts = gideonOpt & auth ?~ basicAuth (BS.pack clientID) (BS.pack sec)
         toPost = ["grant_type" := ("refresh_token" :: String),
                     "refresh_token" := refresh]
-    r <- postWith opts urlVerify toPost
-    updateToken (r ^. responseBody)
-    return . T.unpack $ r ^. responseBody . key "access_token" . _String
+    r <- lift . try $ postWith opts urlVerify toPost
+    case r of
+        Left e -> throwE (SE e)
+        Right r' -> do
+            rr <- lift . try $ updateToken (r' ^. responseBody)
+            case rr of
+                Left e -> throwE (SE e)
+                Right _ -> do
+                    return . T.unpack $ r' ^. responseBody
+                        . key "access_token" . _String
 
-getCharacterDb :: String -> IO (Maybe Character)
+getCharacterDb :: String -> GideonMonad Character
 getCharacterDb username = do
-    sql <- getSqlUser
-    r <- runSqlite sql $ do
+    sql <- lift getSqlUser
+    r <- lift . try $ runSqlite sql $ do
         runMigration migrateAll
         selectFirst [CharacterUsername ==. username] []
     case r of
-        Nothing -> return Nothing
-        Just (Entity _ char) -> return (Just char)
+        Left err -> throwE err
+        Right Nothing -> throwE NoSuchCharacterException
+        Right (Just (Entity _ char)) -> return char
 
-getAccessTokenDb :: String -> IO (Maybe String)
-getAccessTokenDb username = do
-    ch <- getCharacterDb username
-    return (characterAccessToken <$> ch)
+getAccessTokenDb :: String -> GideonMonad String
+getAccessTokenDb username = characterAccessToken <$> getCharacterDb username
 
-getRefreshTokenDb :: String -> IO (Maybe String)
-getRefreshTokenDb username = do
-    ch <- getCharacterDb username
-    return (characterRefreshToken <$> ch)
+getRefreshTokenDb :: String -> GideonMonad String
+getRefreshTokenDb username = characterRefreshToken <$> getCharacterDb username
 
-performAction :: String -> (String -> IO (Maybe a)) -> IO (Maybe a)
+performAction :: String -> (String -> GideonMonad a) -> GideonMonad a
 performAction username action = do
-    let handler :: SomeException -> IO String
-        handler _ = return ""
-    acc <- getAccessTokenDb username
-    case acc of
-        Nothing -> return Nothing
-        Just acc' -> do
-            result <- action acc'
-            case result of
-                Just r -> return result
-                Nothing -> do
-                    ref <- getRefreshTokenDb username
-                    case ref of
-                        Nothing -> return Nothing
-                        Just ref' -> do
-                            r <- catch (getAccessTokenRefresh ref') handler
-                            if null r then return Nothing else
-                                action r
+    r <- lift $ runExceptT (getAccessTokenDb username >>= action)
+    case r of
+        Right r' -> return r'
+        Left (ActionFailedException _) ->
+            getRefreshTokenDb username >>= getAccessTokenRefresh >>= action
+        Left e ->  throwE e
 
-
-
+wrapAction :: (String -> GideonMonad a) -> String -> GideonMonad a
+wrapAction action = \at -> do
+    r <- lift . try $ runExceptT (action at)
+    case r of
+        Left (e :: SomeException) -> throwE $ ActionFailedException (show e)
+        Right (Right r') -> return r'
+        Right (Left err) -> throwE err
 

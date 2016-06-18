@@ -19,6 +19,7 @@ library
                      , Auth
                      , Database
                      , Util
+                     , Types
   build-depends:       base >= 4.7 && < 5
                      , directory
                      , unix
@@ -38,6 +39,7 @@ library
                      , lens-aeson
                      , text
                      , scientific
+                     , yaml
   default-language:    Haskell2010
 
 executable Gideon-exe
@@ -54,6 +56,13 @@ test-suite Gideon-test
   main-is:             Spec.hs
   build-depends:       base
                      , Gideon
+                     , QuickCheck
+                     , hspec
+                     , transformers
+                     , bytestring
+                     , wreq
+                     , lens
+                     , aeson
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 

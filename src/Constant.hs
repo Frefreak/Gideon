@@ -59,3 +59,6 @@ allScope = ["characterAccountRead", "characterAssetsRead",
 
 getSqlUser :: IO Text
 getSqlUser = pack . (</> "user.db") <$> getAppRoot
+
+getMetaDataFile :: IO FilePath
+getMetaDataFile = (</> ".meta.yaml") <$> getAppRoot

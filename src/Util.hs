@@ -2,6 +2,7 @@ module Util where
 
 import System.Random
 import System.Directory
+import Control.Exception
 
 import Constant
 
