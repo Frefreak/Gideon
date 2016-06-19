@@ -7,6 +7,11 @@ import Network.Wreq
 import Control.Lens.Operators
 import Data.Text (pack, Text)
 
+import Network.HTTP.Client.TLS
+import Network.HTTP.Client
+import Network.Connection
+import Data.Default
+
 appName :: String
 appName = "Gideon"
 
@@ -15,6 +20,12 @@ getAppRoot = getAppUserDataDirectory appName
 
 gideonOpt :: Options
 gideonOpt = defaults & header "User-Agent" .~ ["Gideon!!!"]
+                & header "Accept" .~ ["application/vnd.ccp.eve.Api-v3+json"]
+                & manager .~ Left insecureSetting
+
+insecureSetting :: ManagerSettings
+insecureSetting = mkManagerSettings
+    (def { settingDisableCertificateValidation = True }) Nothing
 
 clientID :: String
 clientID = "a6de2072ac1c464295e2432827a20101"
@@ -62,3 +73,5 @@ getSqlUser = pack . (</> "user.db") <$> getAppRoot
 
 getMetaDataFile :: IO FilePath
 getMetaDataFile = (</> ".meta.yaml") <$> getAppRoot
+
+

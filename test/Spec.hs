@@ -16,21 +16,17 @@ selectNoSuchCharacterException :: Either GideonException Int -> Bool
 selectNoSuchCharacterException (Left NoSuchCharacterException) = True
 selectNoSuchCharacterException _ = False
 
-obtainCharacterInfo' :: String -> GideonMonad CharacterInfo
-obtainCharacterInfo' accessToken = do
-    let opts = gideonOpt & auth ?~ oauth2Bearer (BS.pack accessToken)
+obtainCharacterInfo' :: Options -> String -> GideonMonad CharacterInfo
+obtainCharacterInfo' opts _ = do
     r <- lift $ getWith opts urlCharacterInfo
     return . fromJust . decode $ r ^. responseBody
 
 main :: IO ()
 main = hspec $ do
     describe "test Auth functionality" $ do
-        it "handle non-existent character correctly" $ do
-            r <- runExceptT (performAction "non-exist" $ wrapAction undefined)
-            r `shouldSatisfy` selectNoSuchCharacterException
         it "re-acquire access token automatically" $ do
-            -- need to had this user in database
+            -- need to had a current user in database
             r' <- runExceptT
-                (performAction "Carson Xyris" $ wrapAction obtainCharacterInfo')
+                (execute obtainCharacterInfo')
             let Right r = r'
             r `shouldSatisfy` (\ci -> characterName ci == "Carson Xyris")

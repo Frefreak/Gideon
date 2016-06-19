@@ -14,6 +14,8 @@ share [mkPersist sqlSettings, mkSave "entityDefs", mkMigrate "migrateAll"] [pers
 Character
     username        String
     UniqueUsername  username
+    userID          String
+    UniqueUserID    userID
     accessToken     String
     refreshToken    String
     deriving        Show

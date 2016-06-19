@@ -20,6 +20,7 @@ library
                      , Database
                      , Util
                      , Types
+                     , CREST
   build-depends:       base >= 4.7 && < 5
                      , directory
                      , unix
@@ -40,6 +41,10 @@ library
                      , text
                      , scientific
                      , yaml
+                     , http-client
+                     , http-client-tls
+                     , connection
+                     , data-default
   default-language:    Haskell2010
 
 executable Gideon-exe

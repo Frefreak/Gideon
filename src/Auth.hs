@@ -91,16 +91,17 @@ saveToken :: LBS.ByteString -> IO (Either SomeException String)
 saveToken r = do
     let accessToken = r ^. key "access_token" . _String
         refreshToken = r ^. key "refresh_token" . _String
-    try (obtainCharacterName . T.unpack $ accessToken) >>= \n -> do
-        if isLeft n then return n else do
-            let Right n' = n
+    try (obtainCharacterInfo . T.unpack $ accessToken) >>= \char -> do
+        if isLeft char then let Left err = char in return (Left err) else do
+            let Right char' = char
             sql <- getSqlUser
             r <- try $ runSqlite sql $ do
                 runMigration migrateAll
-                insert $ Character n' (T.unpack accessToken)
-                            (T.unpack refreshToken)
+                insert $ Character (characterName char')
+                    (show . coefficient $ characterID char')
+                            (T.unpack accessToken) (T.unpack refreshToken)
             if isLeft r then let Left r' = r in return (Left r')
-                else return n
+                else return (Right $ characterName char')
 
 updateToken :: LBS.ByteString -> IO ()
 updateToken r = do
@@ -186,23 +187,41 @@ getCharacterDb username = do
 getAccessTokenDb :: String -> GideonMonad String
 getAccessTokenDb username = characterAccessToken <$> getCharacterDb username
 
+getUserIDDb :: String -> GideonMonad String
+getUserIDDb username = characterUserID <$> getCharacterDb username
+
 getRefreshTokenDb :: String -> GideonMonad String
 getRefreshTokenDb username = characterRefreshToken <$> getCharacterDb username
 
-performAction :: String -> (String -> GideonMonad a) -> GideonMonad a
-performAction username action = do
-    r <- lift $ runExceptT (getAccessTokenDb username >>= action)
-    case r of
-        Right r' -> return r'
-        Left (ActionFailedException _) ->
-            getRefreshTokenDb username >>= getAccessTokenRefresh >>= action
-        Left e ->  throwE e
-
-wrapAction :: (String -> GideonMonad a) -> String -> GideonMonad a
-wrapAction action = \at -> do
-    r <- lift . try $ runExceptT (action at)
+wrapAction :: (Options -> String -> GideonMonad a) ->
+                Options ->  String -> GideonMonad a
+wrapAction action = \op at -> do
+    r <- lift . try $ runExceptT (action op at)
     case r of
         Left (e :: SomeException) -> throwE $ ActionFailedException (show e)
         Right (Right r') -> return r'
         Right (Left err) -> throwE err
 
+execute :: (Options -> String -> GideonMonad a) -> GideonMonad a
+execute action = do
+    f <- lift $ getMetaDataFile
+    meta <- lift $ Y.decodeFileEither f
+    case meta of
+        Left err -> throwE (PE $ show err)
+        Right r -> do
+            let username = currentUser r
+            uid <- getUserIDDb username
+            accesstoken <- getAccessTokenDb username
+            let opts = gideonOpt & auth ?~ oauth2Bearer (BS.pack accesstoken)
+            r <- lift $ runExceptT (wrapAction action opts uid)
+            case r of
+                Right r' -> return r'
+                Left (ActionFailedException str) -> do
+                    lift $ putStrLn $ "debug: " ++ str
+                    ac <- getRefreshTokenDb username >>= getAccessTokenRefresh
+                    let opts = gideonOpt & auth ?~ oauth2Bearer (BS.pack ac)
+                    action opts uid
+                Left e -> throwE e
+
+execute' :: (Options -> String -> GideonMonad a) -> IO (Either GideonException a)
+execute' = runExceptT . execute

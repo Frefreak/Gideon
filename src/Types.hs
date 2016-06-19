@@ -10,6 +10,7 @@ import GHC.Generics
 data GideonException    = NoSuchCharacterException
                         | ActionFailedException String
                         | SE SomeException
+                        | PE String
     deriving (Show, Typeable)
 instance Exception GideonException
 
