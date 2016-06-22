@@ -21,6 +21,7 @@ library
                      , Util
                      , Types
                      , CREST
+                     , EveTypes
   build-depends:       base >= 4.7 && < 5
                      , directory
                      , unix
@@ -45,6 +46,7 @@ library
                      , http-client-tls
                      , connection
                      , data-default
+                     , unordered-containers
   default-language:    Haskell2010
 
 executable Gideon-exe
