@@ -30,6 +30,8 @@ import Database.Persist
 import Data.Scientific
 import qualified Data.Yaml as Y
 
+import Network.HTTP.Client (HttpException(..))
+
 import Constant
 import Database
 import Util
@@ -193,16 +195,20 @@ getUserIDDb username = characterUserID <$> getCharacterDb username
 getRefreshTokenDb :: String -> GideonMonad String
 getRefreshTokenDb username = characterRefreshToken <$> getCharacterDb username
 
-wrapAction :: (Options -> String -> GideonMonad a) ->
-                Options ->  String -> GideonMonad a
-wrapAction action = \op at -> do
-    r <- lift . try $ runExceptT (action op at)
+wrapAction :: (Options -> UserIDType -> AccessTokenType -> GideonMonad a) ->
+                Options ->  UserIDType -> AccessTokenType -> GideonMonad a
+wrapAction action = \op uid at -> do
+    r <- lift . try $ runExceptT (action op uid at)
     case r of
-        Left (e :: SomeException) -> throwE $ ActionFailedException (show e)
+        Left e@(StatusCodeException s _ _)
+            | s ^. statusCode == 403 || s ^. statusCode == 401 ->
+                throwE $ InvalidTokenException (show e)
+            | otherwise -> throwE $ HE e
         Right (Right r') -> return r'
         Right (Left err) -> throwE err
 
-execute :: (Options -> String -> GideonMonad a) -> GideonMonad a
+execute :: (Options -> UserIDType -> AccessTokenType -> GideonMonad a) ->
+            GideonMonad a
 execute action = do
     f <- lift $ getMetaDataFile
     meta <- lift $ Y.decodeFileEither f
@@ -213,15 +219,21 @@ execute action = do
             uid <- getUserIDDb username
             accesstoken <- getAccessTokenDb username
             let opts = gideonOpt & auth ?~ oauth2Bearer (BS.pack accesstoken)
-            r <- lift $ runExceptT (wrapAction action opts uid)
+            r <- lift $ runExceptT (wrapAction action opts uid accesstoken)
             case r of
                 Right r' -> return r'
-                Left (ActionFailedException str) -> do
+                Left (InvalidTokenException str) -> do
                     lift $ putStrLn $ "debug: " ++ str
                     ac <- getRefreshTokenDb username >>= getAccessTokenRefresh
                     let opts = gideonOpt & auth ?~ oauth2Bearer (BS.pack ac)
-                    action opts uid
+                    action opts uid ac
                 Left e -> throwE e
 
-execute' :: (Options -> String -> GideonMonad a) -> IO (Either GideonException a)
+execute' :: (Options -> UserIDType -> AccessTokenType -> GideonMonad a) -> IO (Either GideonException a)
 execute' = runExceptT . execute
+
+composeXMLUrl :: String -> Params -> String
+composeXMLUrl url params = composeUrl (xmlUrl ++ url) params
+
+composeCRESTUrl :: String -> String
+composeCRESTUrl = (crestUrl ++)

@@ -20,7 +20,7 @@ getAppRoot = getAppUserDataDirectory appName
 
 gideonOpt :: Options
 gideonOpt = defaults & header "User-Agent" .~ ["Gideon!!!"]
-                & header "Accept" .~ ["application/vnd.ccp.eve.Api-v3+json"]
+                & header "Accept" .~ ["application/vnd.ccp.eve.Api-v4+json"]
                 & manager .~ Left insecureSetting
 
 insecureSetting :: ManagerSettings
@@ -74,4 +74,8 @@ getSqlUser = pack . (</> "user.db") <$> getAppRoot
 getMetaDataFile :: IO FilePath
 getMetaDataFile = (</> ".meta.yaml") <$> getAppRoot
 
+xmlUrl :: String
+xmlUrl = "https://api.eveonline.com/"
 
+crestUrl :: String
+crestUrl = "https://crest-tq.eveonline.com/"

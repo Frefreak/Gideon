@@ -11,8 +11,9 @@ import Auth
 import Constant
 import Types
 
-getContacts :: Options -> String -> GideonMonad LBS.ByteString
-getContacts opts uid = do
-    r <- lift $ getWith opts $
-        "https://crest-tq.eveonline.com/characters/" ++ uid ++ "/contacts/"
+getContacts :: Options -> UserIDType -> AccessTokenType ->
+                GideonMonad LBS.ByteString
+getContacts opts uid _ = do
+    r <- lift $ getWith opts $ composeCRESTUrl $
+            "characters/" ++ uid ++ "/contacts/"
     return $ r ^. responseBody
