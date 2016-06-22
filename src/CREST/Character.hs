@@ -17,3 +17,9 @@ getContacts opts uid _ = do
     r <- lift $ getWith opts $ composeCRESTUrl $
             "characters/" ++ uid ++ "/contacts/"
     return $ r ^. responseBody
+
+getLocation :: Options -> UserIDType -> AccessTokenType ->
+                GideonMonad LBS.ByteString
+getLocation opts uid _ = do
+    r <- lift $ getWith opts $ composeCharacterUrl uid "location"
+    return $ r ^. responseBody

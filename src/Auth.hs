@@ -223,8 +223,8 @@ execute action = do
             r <- lift $ runExceptT (wrapAction action opts uid accesstoken)
             case r of
                 Right r' -> return r'
-                Left (InvalidTokenException str) -> do
-                    lift $ putStrLn $ "debug: " ++ str
+                Left (ActionFailedException str) -> do
+                    lift $ putStrLn $ "\ESC[1;31mdebug\ESC[0m: " ++ str
                     ac <- getRefreshTokenDb username >>= getAccessTokenRefresh
                     let opts = gideonOpt & auth ?~ oauth2Bearer (BS.pack ac)
                     action opts uid ac
