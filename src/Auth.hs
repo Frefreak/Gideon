@@ -133,7 +133,7 @@ instance FromJSON CharacterInfo where
                             v .: "TokenType" <*>
                             v .: "CharacterOwnerHash"
 
-obtainCharacterInfo :: String -> IO CharacterInfo
+obtainCharacterInfo :: AccessTokenType -> IO CharacterInfo
 obtainCharacterInfo accessToken = do
     let opts = gideonOpt & auth ?~ oauth2Bearer (BS.pack accessToken)
     r <- getWith opts urlCharacterInfo
@@ -223,7 +223,7 @@ execute action = do
             r <- lift $ runExceptT (wrapAction action opts uid accesstoken)
             case r of
                 Right r' -> return r'
-                Left (ActionFailedException str) -> do
+                Left (InvalidTokenException str) -> do
                     lift $ putStrLn $ "\ESC[1;31mdebug\ESC[0m: " ++ str
                     ac <- getRefreshTokenDb username >>= getAccessTokenRefresh
                     let opts = gideonOpt & auth ?~ oauth2Bearer (BS.pack ac)

@@ -39,8 +39,8 @@ makeFields ''Time
 
 data BlueprintInvention = BlueprintInvention
     { _blueprintInventionMaterials :: Maybe [BlueprintMaterial]
-    , _blueprintProducts :: Maybe [BlueprintProduct]
-    , _blueprintSkills :: Maybe [BlueprintSkill]
+    , _blueprintInventionProducts :: Maybe [BlueprintProduct]
+    , _blueprintInventionSkills :: Maybe [BlueprintSkill]
     , _blueprintInventionTime :: Int
     } deriving (Show)
 makeFields ''BlueprintInvention
