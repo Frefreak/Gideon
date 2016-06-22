@@ -201,7 +201,8 @@ wrapAction action = \op uid at -> do
     r <- lift . try $ runExceptT (action op uid at)
     case r of
         Left e@(StatusCodeException s _ _)
-            | s ^. statusCode == 403 || s ^. statusCode == 401 ->
+            | s ^. statusCode == 403 || s ^. statusCode == 401
+                || s ^. statusCode == 400 -> do
                 throwE $ InvalidTokenException (show e)
             | otherwise -> throwE $ HE e
         Right (Right r') -> return r'

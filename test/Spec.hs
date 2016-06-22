@@ -16,8 +16,9 @@ selectNoSuchCharacterException :: Either GideonException Int -> Bool
 selectNoSuchCharacterException (Left NoSuchCharacterException) = True
 selectNoSuchCharacterException _ = False
 
-obtainCharacterInfo' :: Options -> String -> GideonMonad CharacterInfo
-obtainCharacterInfo' opts _ = do
+obtainCharacterInfo' :: Options -> UserIDType -> AccessTokenType
+    -> GideonMonad CharacterInfo
+obtainCharacterInfo' opts _ _ = do
     r <- lift $ getWith opts urlCharacterInfo
     return . fromJust . decode $ r ^. responseBody
 
