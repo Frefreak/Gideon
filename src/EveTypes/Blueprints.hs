@@ -9,9 +9,13 @@ module EveTypes.Blueprints where
 import Control.Lens
 import Data.Aeson.Lens
 import Data.Aeson
+import System.FilePath
+import Data.Maybe
 import qualified Data.Yaml as Y
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
+
+import Constant
 
 data BlueprintSkill = BlueprintSkill
     { _blueprintSkillLevel :: Int
@@ -117,3 +121,12 @@ instance FromJSON Blueprint where
                             v .: "maxProductionLimit"
 
 type Blueprints = HM.HashMap T.Text Blueprint
+
+blueprintsYaml :: IO FilePath
+blueprintsYaml = (</> "fsd/blueprints.yaml") <$> databasePath
+
+getBlueprints :: FilePath -> IO Blueprints
+getBlueprints fp = fromJust <$> Y.decodeFile fp
+
+getBlueprint :: T.Text -> Blueprints -> Blueprint
+getBlueprint bid = (HM.! bid)

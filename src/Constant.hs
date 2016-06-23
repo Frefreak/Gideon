@@ -20,7 +20,7 @@ getAppRoot = getAppUserDataDirectory appName
 
 gideonOpt :: Options
 gideonOpt = defaults & header "User-Agent" .~ ["Gideon!!!"]
-                & header "Accept" .~ ["application/vnd.ccp.eve.Api-v4+json"]
+                & header "Accept" .~ ["application/vnd.ccp.eve.Api-v5+json"]
                 & manager .~ Left insecureSetting
 
 insecureSetting :: ManagerSettings
@@ -79,3 +79,6 @@ xmlUrl = "https://api.eveonline.com/"
 
 crestUrl :: String
 crestUrl = "https://crest-tq.eveonline.com/"
+
+databasePath :: IO FilePath    -- assume store yaml database in Gideon folder
+databasePath = (</> "Gideon/sde") <$> getHomeDirectory
