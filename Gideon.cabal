@@ -50,6 +50,7 @@ library
                      , data-default
                      , unordered-containers
                      , pcre-heavy
+                     , pcre-light
   default-language:    Haskell2010
 
 executable Gideon-exe

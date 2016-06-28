@@ -8,10 +8,12 @@ import Control.Lens
 import Control.Monad
 import System.FilePath
 import Text.Regex.PCRE.Heavy
+import Text.Regex.PCRE.Light
 import qualified Data.Text as T
 import Data.Either
 import qualified Data.Yaml as Y
 import Data.Text.Encoding (encodeUtf8)
+import Data.Function
 
 import qualified Data.HashMap.Lazy as HM
 
@@ -29,13 +31,14 @@ itemValid it regs = and $ map containWord regs where
 filterItems :: Items -> [Regex] -> Items
 filterItems items regs = HM.filter (flip itemValid regs) items
 
-searchItems' :: Items -> T.Text -> HM.HashMap T.Text Value
+searchItems' :: Items -> [T.Text] -> HM.HashMap T.Text Value
 searchItems' items inputs =
-    let regs = rights $ map (flip compileM [] . encodeUtf8 . T.append "(?i)") $
-                T.words inputs
-    in filterItems items regs
+    let regs = rights $ map (flip compileM [caseless] . encodeUtf8) inputs
+    in if length regs /= length inputs then
+        HM.singleton "0" "" else
+        filterItems items regs
 
-searchItems :: Items -> T.Text -> HM.HashMap T.Text T.Text
+searchItems :: Items -> [T.Text] -> HM.HashMap T.Text T.Text
 searchItems items inputs = HM.map
     (\o -> o ^. key "name" . key "en" . _String) $ searchItems' items inputs
 
