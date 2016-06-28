@@ -31,7 +31,7 @@ library
                      , filepath
                      , servant-server
                      , warp
-                     , transformers
+                     , mtl
                      , wreq
                      , bytestring
                      , persistent
@@ -68,7 +68,7 @@ test-suite Gideon-test
                      , Gideon
                      , QuickCheck
                      , hspec
-                     , transformers
+                     , mtl
                      , bytestring
                      , wreq
                      , lens

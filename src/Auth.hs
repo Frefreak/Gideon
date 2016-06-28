@@ -12,8 +12,9 @@ import System.Environment
 import Servant
 import Network.Wai.Handler.Warp
 import Control.Concurrent
-import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Except
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Except
+import Control.Monad.Reader
 import Network.Wreq hiding (Proxy)
 import Control.Lens.Operators
 import Data.Maybe
@@ -158,80 +159,87 @@ getAccessTokenInitial = do
     threadDelay 1000000 -- delay 1s
     killThread tid
 
-getAccessTokenRefresh :: String -> GideonMonad String
+getAccessTokenRefresh :: String -> Gideon String
 getAccessTokenRefresh refresh = do
-    sec <- lift getSecretKey
+    sec <- liftIO $ getSecretKey
     let opts = gideonOpt & auth ?~ basicAuth (BS.pack clientID) (BS.pack sec)
         toPost = ["grant_type" := ("refresh_token" :: String),
                     "refresh_token" := refresh]
-    r <- lift . try $ postWith opts urlVerify toPost
+    r <- liftIO . try $ postWith opts urlVerify toPost
     case r of
-        Left e -> throwE (SE e)
+        Left e -> throwError (SE e)
         Right r' -> do
-            rr <- lift . try $ updateToken (r' ^. responseBody)
+            rr <- liftIO . try $ updateToken (r' ^. responseBody)
             case rr of
-                Left e -> throwE (SE e)
+                Left e -> throwError (SE e)
                 Right _ -> do
                     return . T.unpack $ r' ^. responseBody
                         . key "access_token" . _String
 
-getCharacterDb :: String -> GideonMonad Character
+getCharacterDb :: String -> Gideon Character
 getCharacterDb username = do
-    sql <- lift getSqlUser
-    r <- lift . try $ runSqlite sql $ do
+    sql <- liftIO getSqlUser
+    r <- liftIO . try $ runSqlite sql $ do
         runMigration migrateAll
         selectFirst [CharacterUsername ==. username] []
     case r of
-        Left err -> throwE err
-        Right Nothing -> throwE NoSuchCharacterException
+        Left (err :: GideonException) -> throwError err
+        Right Nothing -> throwError NoSuchCharacterException
         Right (Just (Entity _ char)) -> return char
 
-getAccessTokenDb :: String -> GideonMonad String
+getAccessTokenDb :: String -> Gideon String
 getAccessTokenDb username = characterAccessToken <$> getCharacterDb username
 
-getUserIDDb :: String -> GideonMonad String
+getUserIDDb :: String -> Gideon String
 getUserIDDb username = characterUserID <$> getCharacterDb username
 
-getRefreshTokenDb :: String -> GideonMonad String
+getRefreshTokenDb :: String -> Gideon String
 getRefreshTokenDb username = characterRefreshToken <$> getCharacterDb username
 
-wrapAction :: (Options -> UserIDType -> AccessTokenType -> GideonMonad a) ->
-                Options ->  UserIDType -> AccessTokenType -> GideonMonad a
-wrapAction action = \op uid at -> do
-    r <- lift . try $ runExceptT (action op uid at)
+wrapAction :: Gideon a -> Gideon a
+wrapAction action = do
+    auth <- ask
+    r <- liftIO . try $ runGideon action auth
     case r of
         Left e@(StatusCodeException s _ _)
             | s ^. statusCode == 403 || s ^. statusCode == 401
                 || s ^. statusCode == 400 -> do
-                throwE $ InvalidTokenException (show e)
-            | otherwise -> throwE $ HE e
+                throwError $ InvalidTokenException (show e)
+            | otherwise -> throwError $ HE e
         Right (Right r') -> return r'
-        Right (Left err) -> throwE err
+        Right (Left err) -> throwError err
 
-execute :: (Options -> UserIDType -> AccessTokenType -> GideonMonad a) ->
-            GideonMonad a
-execute action = do
-    f <- lift $ getMetaDataFile
-    meta <- lift $ Y.decodeFileEither f
+getAuthInfo :: Gideon AuthInfo
+getAuthInfo = do
+    f <- liftIO getMetaDataFile
+    meta <- liftIO $ Y.decodeFileEither f
     case meta of
-        Left err -> throwE (PE $ show err)
+        Left err -> throwError $ PE (show err)
         Right r -> do
             let username = currentUser r
             uid <- getUserIDDb username
             accesstoken <- getAccessTokenDb username
             let opts = gideonOpt & auth ?~ oauth2Bearer (BS.pack accesstoken)
-            r <- lift $ runExceptT (wrapAction action opts uid accesstoken)
-            case r of
-                Right r' -> return r'
-                Left (InvalidTokenException str) -> do
-                    lift $ putStrLn $ "\ESC[1;31mdebug\ESC[0m: " ++ str
-                    ac <- getRefreshTokenDb username >>= getAccessTokenRefresh
-                    let opts = gideonOpt & auth ?~ oauth2Bearer (BS.pack ac)
-                    action opts uid ac
-                Left e -> throwE e
+            return (AuthInfo opts uid accesstoken username)
 
-execute' :: (Options -> UserIDType -> AccessTokenType -> GideonMonad a) -> IO (Either GideonException a)
-execute' = runExceptT . execute
+execute' :: Gideon a -> Gideon a
+execute' action = do
+    au <- getAuthInfo
+    r <- liftIO $ runGideon (wrapAction action) au
+    case r of
+        Right r' -> return r'
+        Left (InvalidTokenException str) -> do
+            liftIO $ putStrLn $ "\ESC[1;31mdebug\ESC[0m:\n" ++ str
+            getRefreshTokenDb (charName au) >>= getAccessTokenRefresh
+            newAuth <- getAuthInfo
+            rr <- liftIO $ runGideon action newAuth
+            case rr of
+                Right rr' -> return rr'
+                Left e -> throwError e
+        Left e -> throwError e
+
+execute :: Gideon a -> IO (Either GideonException a)
+execute action = runGideon (execute' action) undefined
 
 composeXMLUrl :: String -> Params -> String
 composeXMLUrl url params = composeUrl (xmlUrl ++ url) params
