@@ -159,41 +159,41 @@ getAccessTokenInitial = do
     threadDelay 1000000 -- delay 1s
     killThread tid
 
-getAccessTokenRefresh :: String -> Gideon String
+getAccessTokenRefresh :: String -> IO String
 getAccessTokenRefresh refresh = do
-    sec <- liftIO $ getSecretKey
+    sec <- getSecretKey
     let opts = gideonOpt & auth ?~ basicAuth (BS.pack clientID) (BS.pack sec)
         toPost = ["grant_type" := ("refresh_token" :: String),
                     "refresh_token" := refresh]
-    r <- liftIO . try $ postWith opts urlVerify toPost
+    r <- try $ postWith opts urlVerify toPost
     case r of
-        Left e -> throwError (SE e)
+        Left e -> throwIO (SE e)
         Right r' -> do
-            rr <- liftIO . try $ updateToken (r' ^. responseBody)
+            rr <- try $ updateToken (r' ^. responseBody)
             case rr of
-                Left e -> throwError (SE e)
+                Left e -> throwIO (SE e)
                 Right _ -> do
                     return . T.unpack $ r' ^. responseBody
                         . key "access_token" . _String
 
-getCharacterDb :: String -> Gideon Character
+getCharacterDb :: String -> IO Character
 getCharacterDb username = do
-    sql <- liftIO getSqlUser
-    r <- liftIO . try $ runSqlite sql $ do
+    sql <- getSqlUser
+    r <- try $ runSqlite sql $ do
         runMigration migrateAll
         selectFirst [CharacterUsername ==. username] []
     case r of
-        Left (err :: GideonException) -> throwError err
-        Right Nothing -> throwError NoSuchCharacterException
+        Left (err :: GideonException) -> throwIO err
+        Right Nothing -> throwIO NoSuchCharacterException
         Right (Just (Entity _ char)) -> return char
 
-getAccessTokenDb :: String -> Gideon String
+getAccessTokenDb :: String -> IO String
 getAccessTokenDb username = characterAccessToken <$> getCharacterDb username
 
-getUserIDDb :: String -> Gideon String
+getUserIDDb :: String -> IO String
 getUserIDDb username = characterUserID <$> getCharacterDb username
 
-getRefreshTokenDb :: String -> Gideon String
+getRefreshTokenDb :: String -> IO String
 getRefreshTokenDb username = characterRefreshToken <$> getCharacterDb username
 
 wrapAction :: Gideon a -> Gideon a
@@ -209,12 +209,12 @@ wrapAction action = do
         Right (Right r') -> return r'
         Right (Left err) -> throwError err
 
-getAuthInfo :: Gideon AuthInfo
+getAuthInfo :: IO AuthInfo
 getAuthInfo = do
-    f <- liftIO getMetaDataFile
-    meta <- liftIO $ Y.decodeFileEither f
+    f <- getMetaDataFile
+    meta <- Y.decodeFileEither f
     case meta of
-        Left err -> throwError $ PE (show err)
+        Left err -> throwIO $ PE (show err)
         Right r -> do
             let username = currentUser r
             uid <- getUserIDDb username
@@ -224,14 +224,14 @@ getAuthInfo = do
 
 execute' :: Gideon a -> Gideon a
 execute' action = do
-    au <- getAuthInfo
+    au <- ask
     r <- liftIO $ runGideon (wrapAction action) au
     case r of
         Right r' -> return r'
         Left (InvalidTokenException str) -> do
             liftIO $ putStrLn $ "\ESC[1;31mdebug\ESC[0m:\n" ++ str
-            getRefreshTokenDb (charName au) >>= getAccessTokenRefresh
-            newAuth <- getAuthInfo
+            liftIO $ getRefreshTokenDb (charName au) >>= getAccessTokenRefresh
+            newAuth <- liftIO getAuthInfo
             rr <- liftIO $ runGideon action newAuth
             case rr of
                 Right rr' -> return rr'
@@ -239,7 +239,11 @@ execute' action = do
         Left e -> throwError e
 
 execute :: Gideon a -> IO (Either GideonException a)
-execute action = runGideon (execute' action) undefined
+execute action = do
+    auth <- try getAuthInfo
+    case auth of
+        Right auth -> runGideon (execute' action) auth
+        Left err -> return (Left err)
 
 composeXMLUrl :: String -> Params -> String
 composeXMLUrl url params = composeUrl (xmlUrl ++ url) params
