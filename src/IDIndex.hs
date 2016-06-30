@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module TypeIDSearch where
+module IDIndex where
 
 import Data.Aeson
 import Data.Aeson.Lens

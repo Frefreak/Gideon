@@ -14,7 +14,7 @@ import Constant
 import Types
 
 serverStatusUrl :: String
-serverStatusUrl = "https://api.eveonline.com/server/ServerStatus.xml.aspx"
+serverStatusUrl = composeXMLUrl "server/ServerStatus.xml.aspx" []
 
 getServerStatus :: Gideon LBS.ByteString
 getServerStatus = do

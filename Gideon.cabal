@@ -23,7 +23,7 @@ library
                      , CREST
                      , EveTypes
                      , XML
-                     , TypeIDSearch
+                     , IDIndex
   build-depends:       base >= 4.7 && < 5
                      , directory
                      , unix
@@ -51,6 +51,7 @@ library
                      , unordered-containers
                      , pcre-heavy
                      , pcre-light
+                     , xml-conduit
   default-language:    Haskell2010
 
 executable Gideon-exe
