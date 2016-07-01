@@ -11,6 +11,7 @@ import GHC.Generics
 import Network.HTTP.Client
 import Network.Wreq
 import Data.Default
+import Data.Scientific
 
 data GideonException    = NoSuchCharacterException
                         | InvalidTokenException String
@@ -29,6 +30,9 @@ instance FromJSON GideonMetadata
 
 type AccessTokenType = String
 type UserIDType = String
+
+type StationIDType = Scientific
+type RegionIDType = Scientific
 
 data AuthInfo = AuthInfo
     { authOpt :: Options

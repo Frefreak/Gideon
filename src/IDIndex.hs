@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module IDIndex where
 
 import Data.Aeson
@@ -15,12 +16,16 @@ import qualified Data.Yaml as Y
 import Data.Text.Encoding (encodeUtf8)
 import Data.Function
 
+import qualified Data.Vector as V
+
 import qualified Data.HashMap.Lazy as HM
 
 import Constant
+import Types
 
 type Item = Value
 type Items = HM.HashMap T.Text Value
+type Stations = V.Vector Value
 
 itemValid :: Item -> [Regex] -> Bool
 itemValid it regs = and $ map containWord regs where
@@ -47,3 +52,22 @@ getItems = typeIDsYaml >>= Y.decodeFile
 
 typeIDsYaml :: IO FilePath
 typeIDsYaml = (</> "fsd/typeIDs.yaml") <$> databasePath
+
+searchItemByID' :: Items -> T.Text -> Value
+searchItemByID' items tid = items HM.! tid
+
+searchItemByID :: Items -> T.Text -> T.Text
+searchItemByID items tid = let item = items HM.! tid
+    in item ^. key "name" . key "en" . _String
+
+staStationsYaml :: IO FilePath
+staStationsYaml = (</> "bsd/staStations.yaml") <$> databasePath
+
+getStations :: IO (Maybe Stations)
+getStations = staStationsYaml >>= Y.decodeFile >>=
+    \(v :: Maybe Value) -> return (v ^? _Just . _Array)
+
+stationToRegion :: Stations -> StationIDType -> RegionIDType
+stationToRegion stas sid =
+    let ls = V.filter (\o -> o ^?! key "stationID" . _Number == sid) stas
+    in if null ls then 0 else (V.head ls) ^?! key "regionID" . _Number

@@ -52,6 +52,8 @@ library
                      , pcre-heavy
                      , pcre-light
                      , xml-conduit
+                     , vector
+                     , containers
   default-language:    Haskell2010
 
 executable Gideon-exe

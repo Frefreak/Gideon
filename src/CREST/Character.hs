@@ -28,10 +28,3 @@ getLocation = do
             "characters/" ++ uid ++ "/location/"
     return $ r ^. responseBody
 
-getMarketData :: String -> Gideon LBS.ByteString
-getMarketData rid = do
-    opts <- asks authOpt
-    {-uid <- asks userID-}
-    r <- liftIO $ getWith opts $ composeCRESTUrl $
-            "market/" ++ rid ++ "/orders/all/"
-    return $ r ^. responseBody
