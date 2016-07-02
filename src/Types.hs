@@ -12,6 +12,7 @@ import Network.HTTP.Client
 import Network.Wreq
 import Data.Default
 import Data.Scientific
+import qualified Data.Text as T
 
 data GideonException    = NoSuchCharacterException
                         | InvalidTokenException String
@@ -52,3 +53,13 @@ newtype Gideon a = Gideon
 
 runGideon :: Gideon a -> AuthInfo -> IO (Either GideonException a)
 runGideon g authinfo = runExceptT (runReaderT (unGideon g) authinfo)
+
+data MarketOrder = MarketOrder
+    { moStationID :: T.Text
+    , moVolEntered :: Int
+    , moVolRemaining :: Int
+    , moTypeID :: T.Text
+    , moPrice :: Double
+    , moOrderID :: T.Text
+    } deriving (Show, Eq)
+

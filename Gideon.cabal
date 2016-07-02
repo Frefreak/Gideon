@@ -21,9 +21,16 @@ library
                      , Util
                      , Types
                      , CREST
+                     , CREST.Character
+                     , CREST.Market
                      , EveTypes
                      , XML
+                     , XML.Character
+                     , XML.Server
+                     , XML.Eve
                      , IDIndex
+                     , MarketUtil
+                     , Terminal
   build-depends:       base >= 4.7 && < 5
                      , directory
                      , unix
@@ -54,6 +61,8 @@ library
                      , xml-conduit
                      , vector
                      , containers
+                     , async
+                     , ansi-terminal
   default-language:    Haskell2010
 
 executable Gideon-exe

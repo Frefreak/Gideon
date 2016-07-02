@@ -21,8 +21,8 @@ import Constant
 marketOrdersUrl :: Params -> String
 marketOrdersUrl = composeXMLUrl "char/MarketOrders.xml.aspx"
 
-getMarketOrders :: Gideon LBS.ByteString
-getMarketOrders = do
+getMyMarketOrders :: Gideon LBS.ByteString
+getMyMarketOrders = do
     opt <- asks authOpt
     uid <- asks userID
     accessToken <- asks accessToken
@@ -30,14 +30,6 @@ getMarketOrders = do
                     & param "accessToken" .~ [T.pack accessToken]
     r <- liftIO $ getWith newopt (marketOrdersUrl [])
     return $ r ^. responseBody
-
-data MarketOrder = MarketOrder
-    { moStationID :: T.Text
-    , moVolEntered :: Int
-    , moVolRemaining :: Int
-    , moTypeID :: T.Text
-    , moprice :: Double
-    } deriving (Show)
 
 extractOrders :: T.Text -> LBS.ByteString -> [MarketOrder]
 extractOrders bid lbs =
@@ -49,10 +41,11 @@ extractOrders bid lbs =
                         (read . T.unpack <$> attribute "volEntered" c) <*>
                         (read . T.unpack <$> attribute "volRemaining" c) <*>
                         (attribute "typeID" c) <*>
-                        (read . T.unpack <$> attribute "price" c)
+                        (read . T.unpack <$> attribute "price" c) <*>
+                        (attribute "orderID" c)
 
 extractAllBuyOrders :: Gideon [MarketOrder]
-extractAllBuyOrders = extractOrders "1" <$> getMarketOrders
+extractAllBuyOrders = extractOrders "1" <$> getMyMarketOrders
 
 extractAllSellOrders :: Gideon [MarketOrder]
-extractAllSellOrders = extractOrders "0" <$> getMarketOrders
+extractAllSellOrders = extractOrders "0" <$> getMyMarketOrders
