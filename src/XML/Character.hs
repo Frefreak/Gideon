@@ -31,8 +31,8 @@ getMyMarketOrders = do
     r <- liftIO $ getWith newopt (marketOrdersUrl [])
     return $ r ^. responseBody
 
-extractOrders :: T.Text -> LBS.ByteString -> [MarketOrder]
-extractOrders bid lbs =
+extractMyOrders :: T.Text -> LBS.ByteString -> [MarketOrder]
+extractMyOrders bid lbs =
     let Right doc = parseLBS def lbs
         cursor = fromDocument doc
     in cursor $/ element "result" &/ element "rowset" &/ element "row"
@@ -44,8 +44,8 @@ extractOrders bid lbs =
                         (read . T.unpack <$> attribute "price" c) <*>
                         (attribute "orderID" c)
 
-extractAllBuyOrders :: Gideon [MarketOrder]
-extractAllBuyOrders = extractOrders "1" <$> getMyMarketOrders
+extractAllMyBuyOrders :: Gideon [MarketOrder]
+extractAllMyBuyOrders = extractMyOrders "1" <$> getMyMarketOrders
 
-extractAllSellOrders :: Gideon [MarketOrder]
-extractAllSellOrders = extractOrders "0" <$> getMyMarketOrders
+extractAllMySellOrders :: Gideon [MarketOrder]
+extractAllMySellOrders = extractMyOrders "0" <$> getMyMarketOrders

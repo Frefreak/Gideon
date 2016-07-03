@@ -19,6 +19,7 @@ data GideonException    = NoSuchCharacterException
                         | SE SomeException
                         | PE String
                         | HE HttpException
+                        | OE String
     deriving (Show, Typeable)
 instance Exception GideonException
 

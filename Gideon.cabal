@@ -63,6 +63,7 @@ library
                      , containers
                      , async
                      , ansi-terminal
+                     , SafeSemaphore
   default-language:    Haskell2010
 
 executable Gideon-exe

@@ -206,6 +206,7 @@ wrapAction action = do
                 || s ^. statusCode == 400 -> do
                 throwError $ InvalidTokenException (show e)
             | otherwise -> throwError $ HE e
+        Left e' -> throwError (OE $ show e')
         Right (Right r') -> return r'
         Right (Left err) -> throwError err
 
