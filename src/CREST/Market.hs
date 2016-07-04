@@ -17,15 +17,15 @@ import Types
 
 marketTypesUrl = composeCRESTUrl $ "market/types/"
 
-getMarketType :: String -> IO String
-getMarketType tid = do
-    r <- get $ composeCRESTUrl $ "market/types/" ++ tid ++ "/"
+getMarketType :: Options -> String -> IO String
+getMarketType opts tid = do
+    r <- getWith opts $ composeCRESTUrl $ "market/types/" ++ tid ++ "/"
     return . T.unpack $ r ^. responseBody . key "type" . key "href" . _String
 
-getMarketBuyOrders :: RegionIDType -> String -> IO [MarketOrder]
-getMarketBuyOrders rid tid = do
-    href <- getMarketType tid
-    r <- get $ composeCRESTUrl $ "market/" ++ show (coefficient rid)
+getMarketBuyOrders :: Options -> RegionIDType -> String -> IO [MarketOrder]
+getMarketBuyOrders opts rid tid = do
+    href <- getMarketType opts tid
+    r <- getWith opts $ composeCRESTUrl $ "market/" ++ show (coefficient rid)
         ++ "/orders/buy/?type=" ++ href
     return $ r ^.. responseBody . key "items" . _Array . traverse . to (\o ->
         MarketOrder (o ^. key "location" . key "id_str" . _String)
@@ -36,10 +36,10 @@ getMarketBuyOrders rid tid = do
                     (o ^. key "id_str" . _String)
                 )
 
-getMarketSellOrders :: RegionIDType -> String -> IO [MarketOrder]
-getMarketSellOrders rid tid = do
-    href <- getMarketType tid
-    r <- get $ composeCRESTUrl $ "market/" ++ show (coefficient rid)
+getMarketSellOrders :: Options -> RegionIDType -> String -> IO [MarketOrder]
+getMarketSellOrders opts rid tid = do
+    href <- getMarketType opts tid
+    r <- getWith opts $ composeCRESTUrl $ "market/" ++ show (coefficient rid)
         ++ "/orders/sell/?type=" ++ href
     return $ r ^.. responseBody . key "items" . _Array . traverse . to (\o ->
         MarketOrder (o ^. key "location" . key "id_str" . _String)
