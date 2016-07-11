@@ -47,20 +47,20 @@ genNPCTradeList = do
     tls <- getNPCTradeNonBlueprintList
     saveListToFile fp tls
 
-getNPCCorpTradeList :: CorpIDType -> Gideon [T.Text]
+getNPCCorpTradeList :: CorpIDType -> IO [T.Text]
 getNPCCorpTradeList corpID = do
-    Just (trades :: Value) <- liftIO $
-                                crpNPCCorporationTradesYaml >>= Y.decodeFile
+    Just (trades :: Value) <- crpNPCCorporationTradesYaml >>= Y.decodeFile
     let tradeID = map (T.pack . show . coefficient) $ trades ^.. _Array .
                 traverse . filtered (\o -> o ^?!  key "corporationID" . _Number
                 == corpID) .  key "typeID" . _Number
+    Just items <- getItems
     if null tradeID then return [] else
-        map snd . filter (not . isSuffixOf "Blueprint" . T.unpack . snd) <$>
-        getTypeName (nub . sort $ tradeID)
+        return $ filter (not . isSuffixOf "Blueprint" . T.unpack) $
+        map (searchItemByID items) (nub . sort $ tradeID)
 
-genNPCCorpTradeList :: CorpIDType -> Gideon ()
+genNPCCorpTradeList :: CorpIDType -> IO ()
 genNPCCorpTradeList corpID = do
-    fp <- liftIO $ ((</> "NPCCorpTradeList-" ++ showSci corpID ++ ".txt")
+    fp <- ((</> "NPCCorpTradeList-" ++ showSci corpID ++ ".txt")
             <$> sdeExtractionPath)
     tls <- getNPCCorpTradeList corpID
-    liftIO $ saveListToFile fp tls
+    saveListToFile fp tls
