@@ -49,12 +49,3 @@ getMarketSellOrders opts rid tid = do
                     (toRealFloat $ o ^?! key "price" . _Number)
                     (o ^. key "id_str" . _String)
                 )
-
-dodixieRegion :: RegionIDType
-dodixieRegion = 10000032
-
-getMarketRegionHistory :: RegionIDType -> Gideon LBS.ByteString
-getMarketRegionHistory rid = do
-    r <- liftIO $ get $ composeCRESTUrl $ "market/" ++ show (coefficient rid)
-        ++ "/types/34/history/"
-    return $ r ^. responseBody
