@@ -30,6 +30,7 @@ library
                      , XML.Eve
                      , IDIndex
                      , MarketUtil
+                     , SDEDrill
                      , Terminal
   build-depends:       base >= 4.7 && < 5
                      , directory

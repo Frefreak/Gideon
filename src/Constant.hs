@@ -82,3 +82,6 @@ crestUrl = "https://crest-tq.eveonline.com/"
 
 databasePath :: IO FilePath    -- assume store yaml database in Gideon folder
 databasePath = (</> "Gideon/sde") <$> getHomeDirectory
+
+sdeExtractionPath :: IO FilePath -- store info extracted from sde, in Gideon
+sdeExtractionPath = (</> "Gideon/sdeExtraction") <$> getHomeDirectory
