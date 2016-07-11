@@ -10,12 +10,14 @@ import qualified Data.Yaml as Y
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Control.Monad.IO.Class (liftIO)
+import Control.Monad
 import Data.Scientific
 import Data.List
 
 import Constant
 import Types
 import IDIndex
+import XML
 
 
 getNPCTradeItemList :: IO [T.Text]
@@ -35,10 +37,30 @@ crpNPCCorporationTradesYaml :: IO FilePath
 crpNPCCorporationTradesYaml = (</> "bsd/crpNPCCorporationTrades.yaml") <$>
                                 databasePath
 
+saveListToFile :: FilePath -> [T.Text] -> IO ()
+saveListToFile fp txt = TIO.writeFile fp (T.intercalate "\n" . nub . sort $ txt)
+
 -- generate "NPCTradeList.txt"
 genNPCTradeList :: IO ()
 genNPCTradeList = do
-    file <- (</> "NPCTradeList.txt") <$> sdeExtractionPath
-    res <- getNPCTradeNonBlueprintList
-    TIO.writeFile file (T.intercalate "\n" . nub . sort $ res)
+    fp <- ((</> "NPCTradeList.txt") <$> sdeExtractionPath)
+    tls <- getNPCTradeNonBlueprintList
+    saveListToFile fp tls
 
+getNPCCorpTradeList :: CorpIDType -> Gideon [T.Text]
+getNPCCorpTradeList corpID = do
+    Just (trades :: Value) <- liftIO $
+                                crpNPCCorporationTradesYaml >>= Y.decodeFile
+    let tradeID = map (T.pack . show . coefficient) $ trades ^.. _Array .
+                traverse . filtered (\o -> o ^?!  key "corporationID" . _Number
+                == corpID) .  key "typeID" . _Number
+    if null tradeID then return [] else
+        map snd . filter (not . isSuffixOf "Blueprint" . T.unpack . snd) <$>
+        getTypeName (nub . sort $ tradeID)
+
+genNPCCorpTradeList :: CorpIDType -> Gideon ()
+genNPCCorpTradeList corpID = do
+    fp <- liftIO $ ((</> "NPCCorpTradeList-" ++ showSci corpID ++ ".txt")
+            <$> sdeExtractionPath)
+    tls <- getNPCCorpTradeList corpID
+    liftIO $ saveListToFile fp tls

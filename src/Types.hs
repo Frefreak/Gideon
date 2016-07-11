@@ -35,6 +35,10 @@ type UserIDType = String
 
 type StationIDType = Scientific
 type RegionIDType = Scientific
+type CorpIDType = Scientific
+
+showSci :: Scientific -> String
+showSci = show . coefficient
 
 data AuthInfo = AuthInfo
     { authOpt :: Options

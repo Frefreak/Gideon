@@ -24,7 +24,7 @@ typeNameUrl = composeXMLUrl "eve/TypeName.xml.aspx" []
 getTypeName :: [T.Text] -> Gideon [(T.Text, T.Text)]
 getTypeName ids = do
     opts <- asks authOpt
-    let opts' = opts & param "ids" .~ ids
+    let opts' = opts & param "ids" .~ [(T.intercalate "," ids)]
     r <- liftIO $ getWith opts' typeNameUrl
     let cursor = fromDocument $ parseLBS_ def $ r ^. responseBody
     return $ zip (cursor $// attribute "typeID")
