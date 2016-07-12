@@ -37,6 +37,7 @@ import Constant
 import Database
 import Util
 import Types
+import Terminal
 
 type Param = (String, String)
 type Params = [Param]
@@ -251,3 +252,15 @@ composeXMLUrl url params = composeUrl (xmlUrl ++ url) params
 
 composeCRESTUrl :: String -> String
 composeCRESTUrl = (crestUrl ++)
+
+switchAccount :: String -> IO ()
+switchAccount user = do
+    sql <- getSqlUser
+    r <- runSqlite sql $ do
+        runMigration migrateAll
+        selectFirst [CharacterUsername ==. user] []
+    case r of
+        Nothing -> putStrLn $ redString "error" ++ ": invalid username"
+        Just (Entity _ _) -> saveCurrentUser user
+
+

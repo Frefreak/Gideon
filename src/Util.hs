@@ -18,3 +18,4 @@ createAppRootifNeeded = getAppRoot >>= createDirectoryIfMissing False
 
 filterMap :: (a -> Bool) -> (a -> b) -> [a] -> [b]
 filterMap pred f ls = foldr (\i acc -> if pred i then f i : acc else acc) [] ls
+
