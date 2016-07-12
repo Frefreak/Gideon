@@ -39,10 +39,11 @@ reportBuyOrderStatus' = do
     myorders <- extractAllMyBuyOrders
     opts <- asks authOpt
     sem <- liftIO $ new 150
-    liftIO $ forConcurrently myorders $ with sem . \order -> do
+    liftIO $ fmap catMaybes $ forConcurrently myorders $ with sem . \order -> do
         let region = stationToRegion stas (read . T.unpack $ moStationID order)
+        if region == 0 then return Nothing else do
         orders <- getMarketBuyOrders opts region (T.unpack $ moTypeID order)
-        return (order, getBestBuyOrder .
+        return . Just $ (order, getBestBuyOrder .
             filter (\o -> moStationID o == moStationID order) $ orders)
 
 reportBuyOrderStatus :: IO ()
@@ -86,11 +87,12 @@ reportSellOrderStatus' = do
     myorders <- extractAllMySellOrders
     opts <- asks authOpt
     sem <- liftIO $ new 150
-    liftIO $ forConcurrently myorders $ with sem . \order -> do
+    liftIO $ fmap catMaybes $ forConcurrently myorders $ with sem . \order -> do
         let region = stationToRegion stas (read . T.unpack $ moStationID order)
-        orders <- getMarketSellOrders opts region (T.unpack $ moTypeID order)
-        return (order, getBestSellOrder .
-            filter (\o -> moStationID o == moStationID order) $ orders)
+        if region == 0 then return Nothing else do
+            orders <- getMarketSellOrders opts region (T.unpack $ moTypeID order)
+            return . Just $ (order, getBestSellOrder .
+                filter (\o -> moStationID o == moStationID order) $ orders)
 
 reportSellOrderStatus :: IO ()
 reportSellOrderStatus = do
