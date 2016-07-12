@@ -49,3 +49,17 @@ extractAllMyBuyOrders = extractMyOrders "1" <$> getMyMarketOrders
 
 extractAllMySellOrders :: Gideon [MarketOrder]
 extractAllMySellOrders = extractMyOrders "0" <$> getMyMarketOrders
+
+industryJobsUrl :: Params -> String
+industryJobsUrl = composeXMLUrl "char/IndustryJobs.xml.aspx"
+
+
+getIndustryJobs :: Gideon LBS.ByteString
+getIndustryJobs = do
+    opt <- asks authOpt
+    uid <- asks userID
+    accessToken <- asks accessToken
+    let newopt = opt & param "characterID" .~ [T.pack uid]
+                    & param "accessToken" .~ [T.pack accessToken]
+    r <- liftIO $ getWith newopt (industryJobsUrl [])
+    return $ r ^. responseBody
