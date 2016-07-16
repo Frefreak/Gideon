@@ -42,9 +42,9 @@ reportBuyOrderStatus' = do
     liftIO $ fmap catMaybes $ forConcurrently myorders $ with sem . \order -> do
         let region = stationToRegion stas (read . T.unpack $ moStationID order)
         if region == 0 then return Nothing else do
-        orders <- getMarketBuyOrders opts region (T.unpack $ moTypeID order)
-        return . Just $ (order, getBestBuyOrder .
-            filter (\o -> moStationID o == moStationID order) $ orders)
+            orders <- getMarketBuyOrders opts region (T.unpack $ moTypeID order)
+            return . Just $ (order, getBestBuyOrder .
+                filter (\o -> moStationID o == moStationID order) $ orders)
 
 reportBuyOrderStatus :: IO ()
 reportBuyOrderStatus = do
