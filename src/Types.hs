@@ -68,3 +68,25 @@ data MarketOrder = MarketOrder
     , moOrderID :: T.Text
     } deriving (Show, Eq)
 
+-- I'm in Thera!
+data TheraWormholeConnection = TWC
+    { twcOutSignatureID :: SignatureType
+    , twcInSignatureID :: SignatureType
+    , twcWormholeType :: T.Text
+    , twcDesSolarSystem :: T.Text
+    , twcDesRegion :: T.Text
+    } deriving (Show, Eq)
+
+type STPrefix = T.Text
+type STSuffix = T.Text
+data SignatureType = ST STPrefix STSuffix
+
+instance Eq SignatureType where
+    ST p1 _ == ST p2 _ = p1 == p2
+instance Show SignatureType where
+    show (ST p s) = T.unpack p ++ "-" ++ T.unpack s
+
+-- currently only contains signature id
+data ProbeScannerResult = PSR
+    { psrSignatureID :: SignatureType
+    } deriving (Show)

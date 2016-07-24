@@ -32,6 +32,7 @@ library
                      , MarketUtil
                      , SDEDrill
                      , Terminal
+                     , Thera
   build-depends:       base >= 4.7 && < 5
                      , directory
                      , unix
@@ -67,7 +68,7 @@ library
                      , SafeSemaphore
   default-language:    Haskell2010
 
-executable Gideon-exe
+executable Gideon
   hs-source-dirs:      app
   main-is:             Main.hs
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
