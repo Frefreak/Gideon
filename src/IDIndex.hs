@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+-- everything related to ID
 module IDIndex where
 
 import Data.Aeson
@@ -8,13 +9,16 @@ import Data.Aeson.Lens
 import Control.Lens
 import Control.Monad
 import System.FilePath
+import System.Directory
 import Text.Regex.PCRE.Heavy
 import Text.Regex.PCRE.Light
 import qualified Data.Text as T
+import Data.Text.IO as TIO
 import Data.Either
 import qualified Data.Yaml as Y
 import Data.Text.Encoding (encodeUtf8)
 import Data.Function
+import Data.Char (toLower)
 
 import qualified Data.Vector as V
 
@@ -71,3 +75,13 @@ stationToRegion :: Stations -> StationIDType -> RegionIDType
 stationToRegion stas sid =
     let ls = V.filter (\o -> o ^?! key "stationID" . _Number == sid) stas
     in if null ls then 0 else (V.head ls) ^?! key "regionID" . _Number
+
+allSolarSystemsTxt :: IO FilePath
+allSolarSystemsTxt = (</> "allSolarSystems.txt") <$> sdeExtractionPath
+
+completeSolarSystemName :: T.Text -> IO [T.Text]
+completeSolarSystemName prefix = do
+    exist <- allSolarSystemsTxt >>= doesFileExist
+    if not exist then error "Run scripts/genAllSolarSystems.sh first!" else do
+    solars <- T.lines <$> (allSolarSystemsTxt >>= TIO.readFile)
+    return $ filter (on T.isPrefixOf (T.map toLower) prefix) solars
