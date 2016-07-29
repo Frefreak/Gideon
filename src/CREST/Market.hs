@@ -22,12 +22,17 @@ getMarketType opts tid = do
     r <- getWith opts $ composeCRESTUrl $ "market/types/" ++ tid ++ "/"
     return . T.unpack $ r ^. responseBody . key "type" . key "href" . _String
 
-getMarketBuyOrders :: Options -> RegionIDType -> String -> IO [MarketOrder]
-getMarketBuyOrders opts rid tid = do
+getMarketBuyOrders' :: Options -> RegionIDType -> String -> IO LBS.ByteString
+getMarketBuyOrders' opts rid tid = do
     href <- getMarketType opts tid
     r <- getWith opts $ composeCRESTUrl $ "market/" ++ show (coefficient rid)
         ++ "/orders/buy/?type=" ++ href
-    return $ r ^.. responseBody . key "items" . _Array . traverse . to (\o ->
+    return $ r ^. responseBody
+
+getMarketBuyOrders :: Options -> RegionIDType -> String -> IO [MarketOrder]
+getMarketBuyOrders opts rid tid = do
+    lbs <- getMarketBuyOrders' opts rid tid
+    return $ lbs ^.. key "items" . _Array . traverse . to (\o ->
         MarketOrder (o ^. key "location" . key "id_str" . _String)
                     (round $ o ^?! key "volumeEntered" . _Number)
                     (round $ o ^?! key "volume" . _Number)
@@ -36,12 +41,17 @@ getMarketBuyOrders opts rid tid = do
                     (o ^. key "id_str" . _String)
                 )
 
-getMarketSellOrders :: Options -> RegionIDType -> String -> IO [MarketOrder]
-getMarketSellOrders opts rid tid = do
+getMarketSellOrders' :: Options -> RegionIDType -> String -> IO LBS.ByteString
+getMarketSellOrders' opts rid tid = do
     href <- getMarketType opts tid
     r <- getWith opts $ composeCRESTUrl $ "market/" ++ show (coefficient rid)
         ++ "/orders/sell/?type=" ++ href
-    return $ r ^.. responseBody . key "items" . _Array . traverse . to (\o ->
+    return $ r ^. responseBody
+
+getMarketSellOrders :: Options -> RegionIDType -> String -> IO [MarketOrder]
+getMarketSellOrders opts rid tid = do
+    lbs <- getMarketSellOrders' opts rid tid
+    return $ lbs ^.. key "items" . _Array . traverse . to (\o ->
         MarketOrder (o ^. key "location" . key "id_str" . _String)
                     (round $ o ^?! key "volumeEntered" . _Number)
                     (round $ o ^?! key "volume" . _Number)

@@ -19,9 +19,7 @@ import qualified Data.Yaml as Y
 import Data.Text.Encoding (encodeUtf8)
 import Data.Function
 import Data.Char (toLower)
-
 import qualified Data.Vector as V
-
 import qualified Data.HashMap.Lazy as HM
 
 import Constant
@@ -82,6 +80,7 @@ allSolarSystemsTxt = (</> "allSolarSystems.txt") <$> sdeExtractionPath
 completeSolarSystemName :: T.Text -> IO [T.Text]
 completeSolarSystemName prefix = do
     exist <- allSolarSystemsTxt >>= doesFileExist
-    if not exist then error "Run scripts/genAllSolarSystems.sh first!" else do
-    solars <- T.lines <$> (allSolarSystemsTxt >>= TIO.readFile)
-    return $ filter (on T.isPrefixOf (T.map toLower) prefix) solars
+    if not exist then error "Run gen AllSystemsMap first!" else do
+        solars <- map (head . T.words) . T.lines <$> (allSolarSystemsTxt >>= TIO.readFile)
+        return $ filter (on T.isPrefixOf (T.map toLower) prefix) solars
+
