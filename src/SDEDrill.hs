@@ -8,6 +8,7 @@ import System.Directory
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import Data.Maybe
+import Data.Either
 import Control.Lens
 import Data.Aeson.Lens
 import qualified Data.Yaml as Y
@@ -21,15 +22,20 @@ import qualified Data.Vector as V
 import GHC.Generics
 import Control.Concurrent.Async
 import qualified Data.ByteString.Lazy.Char8 as LBS
+import Text.Regex.PCRE.Heavy
+import Text.Regex.PCRE.Light
+import qualified Data.Yaml as Y
+import Data.Text.Encoding (encodeUtf8)
+import Data.Function
+import Data.Char (toLower)
+import qualified Data.HashMap.Lazy as HM
 
 import Constant
 import Types
-import IDIndex
 import XML
 import CREST
 import Util
 import Auth
-
 
 getNPCTradeItemList :: IO [T.Text]
 getNPCTradeItemList = do
@@ -89,6 +95,8 @@ data RegionSystems = RS
 
 instance ToJSON SolarSystemPair
 instance ToJSON RegionSystems
+instance FromJSON SolarSystemPair
+instance FromJSON RegionSystems
 
 getSystemPairs :: (Gideon (V.Vector SolarSystemPair) -> IO (V.Vector a))
                 -> (RegionIDType, T.Text)
@@ -119,4 +127,71 @@ genAllSolarSystemsMap = do
     fp <- allSolarSystemsJson
     Right vrs <- execute genAllSolarSystemsMap'
     LBS.writeFile fp (encodePretty vrs)
+
+
+
+type Item = Value
+type Items = HM.HashMap T.Text Value
+type Stations = V.Vector Value
+
+itemValid :: Item -> [Regex] -> Bool
+itemValid it regs = and $ map containWord regs where
+    desc = it ^. key "description" . key "en" . _String
+    name = it ^. key "name" . key "en" . _String
+    containWord wd = (desc =~ wd) || (name =~ wd)
+
+filterItems :: Items -> [Regex] -> Items
+filterItems items regs = HM.filter (flip itemValid regs) items
+
+searchItems' :: Items -> [T.Text] -> HM.HashMap T.Text Value
+searchItems' items inputs =
+    let regs = rights $ map (flip compileM [caseless] . encodeUtf8) inputs
+    in if length regs /= length inputs then
+        HM.singleton "0" "" else
+        filterItems items regs
+
+searchItems :: Items -> [T.Text] -> HM.HashMap T.Text T.Text
+searchItems items inputs = HM.map
+    (\o -> o ^. key "name" . key "en" . _String) $ searchItems' items inputs
+
+getItems :: IO (Maybe Items)
+getItems = typeIDsYaml >>= Y.decodeFile
+
+typeIDsYaml :: IO FilePath
+typeIDsYaml = (</> "fsd/typeIDs.yaml") <$> databasePath
+
+searchItemByID' :: Items -> T.Text -> Value
+searchItemByID' items tid = items HM.! tid
+
+searchItemByID :: Items -> T.Text -> T.Text
+searchItemByID items tid = let item = items HM.! tid
+    in item ^. key "name" . key "en" . _String
+
+staStationsYaml :: IO FilePath
+staStationsYaml = (</> "bsd/staStations.yaml") <$> databasePath
+
+getStations :: IO (Maybe Stations)
+getStations = staStationsYaml >>= Y.decodeFile >>=
+    \(v :: Maybe Value) -> return (v ^? _Just . _Array)
+
+stationToRegion :: Stations -> StationIDType -> RegionIDType
+stationToRegion stas sid =
+    let ls = V.filter (\o -> o ^?! key "stationID" . _Number == sid) stas
+    in if null ls then 0 else (V.head ls) ^?! key "regionID" . _Number
+
+allSolarSystemsJson :: IO FilePath
+allSolarSystemsJson = (</> "allSolarSystems.json") <$> sdeExtractionPath
+
+getAllSystems :: FilePath -> IO [T.Text]
+getAllSystems fp = do
+    lbs <- LBS.readFile fp
+    let Just val = decode lbs :: Maybe Value
+    return $ val ^.. _Array . traverse . key "rsSystems" . _Array . traverse . key "sspName" . _String
+
+completeSolarSystemName :: T.Text -> IO [T.Text]
+completeSolarSystemName prefix = do
+    exist <- allSolarSystemsJson >>= doesFileExist
+    if not exist then error "Run gen AllSystemsMap first!" else do
+        solars <- allSolarSystemsJson >>= getAllSystems
+        return $ filter (on T.isPrefixOf (T.map toLower) prefix) solars
 

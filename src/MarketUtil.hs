@@ -21,7 +21,7 @@ import Auth
 import CREST
 import Types
 import Constant
-import IDIndex
+import SDEDrill
 import Terminal
 
 getOptimalOrder :: (MarketOrder -> MarketOrder -> Ordering) -> [MarketOrder] -> MarketOrder

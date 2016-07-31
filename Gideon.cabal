@@ -29,7 +29,6 @@ library
                      , XML.Character
                      , XML.Server
                      , XML.Eve
-                     , IDIndex
                      , MarketUtil
                      , SDEDrill
                      , Terminal
