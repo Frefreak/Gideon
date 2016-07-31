@@ -14,6 +14,7 @@ import Data.Scientific
 import Auth
 import Constant
 import Types
+import Util
 
 marketTypesUrl = composeCRESTUrl $ "market/types/"
 

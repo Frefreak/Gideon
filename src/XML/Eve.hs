@@ -17,6 +17,7 @@ import Data.Default
 import Auth
 import Types
 import Constant
+import Util
 
 typeNameUrl :: String
 typeNameUrl = composeXMLUrl "eve/TypeName.xml.aspx" []

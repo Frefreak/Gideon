@@ -74,13 +74,13 @@ stationToRegion stas sid =
     let ls = V.filter (\o -> o ^?! key "stationID" . _Number == sid) stas
     in if null ls then 0 else (V.head ls) ^?! key "regionID" . _Number
 
-allSolarSystemsTxt :: IO FilePath
-allSolarSystemsTxt = (</> "allSolarSystems.txt") <$> sdeExtractionPath
+allSolarSystemsJson :: IO FilePath
+allSolarSystemsJson = (</> "allSolarSystems.json") <$> sdeExtractionPath
 
 completeSolarSystemName :: T.Text -> IO [T.Text]
 completeSolarSystemName prefix = do
-    exist <- allSolarSystemsTxt >>= doesFileExist
+    exist <- allSolarSystemsJson >>= doesFileExist
     if not exist then error "Run gen AllSystemsMap first!" else do
-        solars <- map (head . T.words) . T.lines <$> (allSolarSystemsTxt >>= TIO.readFile)
+        solars <- map (head . T.words) . T.lines <$> (allSolarSystemsJson >>= TIO.readFile)
         return $ filter (on T.isPrefixOf (T.map toLower) prefix) solars
 

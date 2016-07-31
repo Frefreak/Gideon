@@ -11,6 +11,7 @@ import Control.Monad.IO.Class (liftIO)
 import Auth
 import Constant
 import Types
+import Util
 
 getContacts :: Gideon LBS.ByteString
 getContacts = do

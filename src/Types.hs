@@ -35,6 +35,8 @@ type UserIDType = String
 
 type StationIDType = Scientific
 type RegionIDType = Scientific
+type ConstellationIDType = Scientific
+type SolarSystemIDType = Scientific
 type CorpIDType = Scientific
 
 showSci :: Scientific -> String
@@ -58,6 +60,9 @@ newtype Gideon a = Gideon
 
 runGideon :: Gideon a -> AuthInfo -> IO (Either GideonException a)
 runGideon g authinfo = runExceptT (runReaderT (unGideon g) authinfo)
+
+type Param = (String, String)
+type Params = [Param]
 
 data MarketOrder = MarketOrder
     { moStationID :: T.Text

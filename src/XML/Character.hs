@@ -17,6 +17,7 @@ import Data.Default
 import Auth
 import Types
 import Constant
+import Util
 
 marketOrdersUrl :: Params -> String
 marketOrdersUrl = composeXMLUrl "char/MarketOrders.xml.aspx"

@@ -12,6 +12,7 @@ import qualified Data.Text as T
 import Auth
 import Constant
 import Types
+import Util
 
 serverStatusUrl :: String
 serverStatusUrl = composeXMLUrl "server/ServerStatus.xml.aspx" []

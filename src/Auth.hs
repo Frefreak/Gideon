@@ -39,18 +39,6 @@ import Util
 import Types
 import Terminal
 
-type Param = (String, String)
-type Params = [Param]
-
-composeUrl :: String -> Params -> String
-composeUrl baseUrl params = baseUrl </> "?" ++ paramString where
-    paramString = intercalate "&" (map (\(a, b) -> a ++ "=" ++ b) params)
-
-composeParams :: String -> String -> [String] -> String -> Params
-composeParams uri cid scope state = let scopes = intercalate " " scope
-    in [("response_type", "code"), ("redirect_uri", uri),
-        ("client_id", cid), ("scope", scopes), ("state", state)]
-
 type CallbackAPI = "callback" :> QueryParam "code" String
             :> QueryParam "state" String :> Get '[PlainText] String
 
@@ -247,11 +235,13 @@ execute action = do
         Right auth -> runGideon (execute' action) auth
         Left err -> return (Left err)
 
-composeXMLUrl :: String -> Params -> String
-composeXMLUrl url params = composeUrl (xmlUrl ++ url) params
-
-composeCRESTUrl :: String -> String
-composeCRESTUrl = (crestUrl ++)
+-- unsafe mode, used in batch mode (no database query)
+executeWithAuth :: AuthInfo -> Gideon a -> IO a
+executeWithAuth auth action = do
+    r <- runGideon action auth
+    case r of
+        Left err -> throwIO err
+        Right r -> return r
 
 switchAccount :: String -> IO ()
 switchAccount user = do

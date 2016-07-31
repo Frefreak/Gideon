@@ -12,8 +12,9 @@ main = do
         "report"    -> case target of
             "orders" -> reportSellAndBuyOrderStatus
             "sigs" -> reportUnscannedSigID
-            otherwise -> putStrLn "Unknown target"
+            _ -> putStrLn "Unknown target"
         "gen"       -> case target of
             "allSystemsMap" -> genAllSolarSystemsMap
-        otherwise -> putStrLn "Unknown action"
+            _ -> putStrLn "Unknown target"
+        _           -> putStrLn "Unknown action"
 
