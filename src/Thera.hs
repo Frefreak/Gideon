@@ -9,11 +9,11 @@ import Control.Lens
 import Control.Monad
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as T
-import System.Process
 import Control.Exception
 import Data.List ((\\))
 
 import Types
+import Util
 
 eveScoutApiWormholes :: String
 eveScoutApiWormholes = "https://www.eve-scout.com/api/wormholes"
@@ -47,8 +47,8 @@ parseProbeScanner =
 
 getProbeScannerResult :: IO [ProbeScannerResult]
 getProbeScannerResult = do
-    text <- readProcess "xclip" ["-selection", "clipboard", "-o"] []
-    return . parseProbeScanner . T.pack $ text
+    text <- getClipboard
+    return . parseProbeScanner $ text
 
 getUnscannedSigID :: IO [SignatureType]
 getUnscannedSigID = do

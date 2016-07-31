@@ -16,10 +16,10 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Constant
-                     , Auth
                      , Database
                      , Util
                      , Types
+                     , Auth
                      , CREST
                      , CREST.Character
                      , CREST.Market
