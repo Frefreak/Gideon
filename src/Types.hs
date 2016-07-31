@@ -20,6 +20,7 @@ data GideonException    = NoSuchCharacterException
                         | PE String
                         | HE HttpException
                         | OE String
+                        | InvalidArgument T.Text
     deriving (Show, Typeable)
 instance Exception GideonException
 

@@ -19,7 +19,7 @@ import Control.Monad
 import Data.Scientific
 import Data.List
 import qualified Data.Vector as V
-import GHC.Generics
+import GHC.Generics hiding (to)
 import Control.Concurrent.Async
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import Text.Regex.PCRE.Heavy
@@ -29,6 +29,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.Function
 import Data.Char (toLower)
 import qualified Data.HashMap.Lazy as HM
+import Control.Exception
 
 import Constant
 import Types
@@ -98,38 +99,6 @@ instance ToJSON RegionSystems
 instance FromJSON SolarSystemPair
 instance FromJSON RegionSystems
 
-getSystemPairs :: (Gideon (V.Vector SolarSystemPair) -> IO (V.Vector a))
-                -> (RegionIDType, T.Text)
-                -> V.Vector (T.Text, SolarSystemIDType)
-                -> Gideon (V.Vector a)
-getSystemPairs wrap (rid, rname) ssL = do
-    let findname sid sl = fst . fromJust . V.find (\t -> snd t == sid) $ sl
-    cons <- V.fromList <$> getConstellationsOfRegion rid
-    rss <- liftIO $ forConcurrently cons $ \(cid, _) -> wrap $ do
-        syss <- V.fromList <$> getSolarSystemsOfConstellation cid
-        return $ V.map (\(sid, _) -> SSP sid (findname sid ssL)) syss
-    return $ V.concat $ V.toList rss
-
-genAllSolarSystemsMap' :: Gideon (V.Vector RegionSystems)
-genAllSolarSystemsMap' = do
-    regionList <- V.fromList <$> getRegionList
-    ssList <- V.fromList <$> getSolarSystemList
-    au <- liftIO getAuthInfo
-    let wrapper1 = executeWithAuth au
-        wrapper2 = executeWithAuth au
-    liftIO $ forPool 10 regionList $ \(rname, rid) -> wrapper1 $
-        (RS rid rname <$> getSystemPairs wrapper2 (rid, rname) ssList)
-
--- this function generates a file containing the hierarchy of Region > SolarSystems
--- while ignoring the constellation betwwen them
-genAllSolarSystemsMap :: IO ()
-genAllSolarSystemsMap = do
-    fp <- allSolarSystemsJson
-    Right vrs <- execute genAllSolarSystemsMap'
-    LBS.writeFile fp (encodePretty vrs)
-
-
-
 type Item = Value
 type Items = HM.HashMap T.Text Value
 type Stations = V.Vector Value
@@ -179,19 +148,116 @@ stationToRegion stas sid =
     let ls = V.filter (\o -> o ^?! key "stationID" . _Number == sid) stas
     in if null ls then 0 else (V.head ls) ^?! key "regionID" . _Number
 
+getSystemPairs :: (Gideon (V.Vector SolarSystemPair) -> IO (V.Vector a))
+                -> (RegionIDType, T.Text)
+                -> V.Vector (T.Text, SolarSystemIDType)
+                -> Gideon (V.Vector a)
+getSystemPairs wrap (rid, rname) ssL = do
+    let findname sid sl = fst . fromJust . V.find (\t -> snd t == sid) $ sl
+    cons <- V.fromList <$> getConstellationsOfRegion rid
+    rss <- liftIO $ forConcurrently cons $ \(cid, _) -> wrap $ do
+        syss <- V.fromList <$> getSolarSystemsOfConstellation cid
+        return $ V.map (\(sid, _) -> SSP sid (findname sid ssL)) syss
+    return $ V.concat $ V.toList rss
+
+genAllSolarSystemsMap' :: Gideon (V.Vector RegionSystems)
+genAllSolarSystemsMap' = do
+    regionList <- V.fromList <$> getRegionList
+    ssList <- V.fromList <$> getSolarSystemList
+    au <- liftIO getAuthInfo
+    let wrapper1 = executeWithAuth au
+        wrapper2 = executeWithAuth au
+    liftIO $ forPool 10 regionList $ \(rname, rid) -> wrapper1 $
+        (RS rid rname <$> getSystemPairs wrapper2 (rid, rname) ssList)
+
+-- this function generates a file containing the hierarchy of Region > SolarSystems
+-- while ignoring the constellation betwwen them
+genAllSolarSystemsMap :: IO ()
+genAllSolarSystemsMap = do
+    fp <- allSolarSystemsJson
+    Right vrs <- execute genAllSolarSystemsMap'
+    LBS.writeFile fp (encodePretty vrs)
+
 allSolarSystemsJson :: IO FilePath
 allSolarSystemsJson = (</> "allSolarSystems.json") <$> sdeExtractionPath
 
-getAllSystems :: FilePath -> IO [T.Text]
-getAllSystems fp = do
-    lbs <- LBS.readFile fp
-    let Just val = decode lbs :: Maybe Value
-    return $ val ^.. _Array . traverse . key "rsSystems" . _Array . traverse . key "sspName" . _String
+getAllSystems :: IO [T.Text]
+getAllSystems = do
+    exist <- allSolarSystemsJson >>= doesFileExist
+    if not exist then error "Run gen AllSystemsMap first!" else do
+        lbs <- allSolarSystemsJson >>= LBS.readFile
+        let Just val = decode lbs :: Maybe Value
+        return $ val ^.. _Array . traverse . key "rsSystems" .
+            _Array . traverse . key "sspName" . _String
+
+completeSolarSystemName' :: [T.Text] -> T.Text -> [T.Text]
+completeSolarSystemName' solars prefix =
+    filter (on T.isPrefixOf (T.map toLower) prefix) solars
 
 completeSolarSystemName :: T.Text -> IO [T.Text]
 completeSolarSystemName prefix = do
+    sys <- getAllSystems
+    return $ completeSolarSystemName' sys prefix
+
+sanitizeSystemName :: [T.Text] -> T.Text -> T.Text
+sanitizeSystemName solars t =
+    let candidates = completeSolarSystemName' solars t
+    in if null candidates then error $ "No such system name: " ++ T.unpack t
+        else head candidates
+
+sanitizeSystemNames :: [T.Text] -> [T.Text] -> [T.Text]
+sanitizeSystemNames solars ts = map (sanitizeSystemName solars) ts
+
+type SystemMapping =
+    HM.HashMap (T.Text, RegionIDType) [(T.Text, SolarSystemIDType)]
+
+getSystemMappings :: IO SystemMapping
+getSystemMappings = do
     exist <- allSolarSystemsJson >>= doesFileExist
     if not exist then error "Run gen AllSystemsMap first!" else do
-        solars <- allSolarSystemsJson >>= getAllSystems
-        return $ filter (on T.isPrefixOf (T.map toLower) prefix) solars
+        lbs <- allSolarSystemsJson >>= LBS.readFile
+        return . HM.fromList $ lbs ^.. _Array . traverse . to (\o ->
+            ((o ^. key "rsName" . _String,
+            o ^?! key "rsID" . _Number), o ^.. key "rsSystems" . _Array .
+                traverse . to (\o' -> (o' ^. key "sspName" . _String,
+                                        o' ^?! key "sspID" . _Number))))
 
+systemNameToRegion' :: SystemMapping -> T.Text -> (T.Text, RegionIDType)
+systemNameToRegion' sm t =
+    head . HM.keys $ HM.filter (\v -> t `elem` (map fst v)) sm
+
+systemIDToRegion' :: SystemMapping -> SolarSystemIDType ->
+    (T.Text, RegionIDType)
+systemIDToRegion' sm ssit =
+    head . HM.keys $ HM.filter (\v ->ssit `elem` (map snd v)) sm
+
+
+systemNamesToRegion' :: SystemMapping -> [T.Text] -> [(T.Text, RegionIDType)]
+systemNamesToRegion' sm t = map (systemNameToRegion' sm) t
+
+systemIDsToRegion' :: SystemMapping -> [SolarSystemIDType]
+    -> [(T.Text, RegionIDType)]
+systemIDsToRegion' sm ssit = map (systemIDToRegion' sm) ssit
+
+systemNameToRegion :: T.Text -> IO (T.Text, RegionIDType)
+systemNameToRegion t = do
+    sys <- getAllSystems
+    let t' = sanitizeSystemName sys t
+    getSystemMappings >>= return . flip systemNameToRegion' t'
+
+systemNamesToRegion :: [T.Text] -> IO [(T.Text, RegionIDType)]
+systemNamesToRegion t = do
+    sys <- getAllSystems
+    let t' = sanitizeSystemNames sys t
+    getSystemMappings >>= return . flip systemNamesToRegion' t'
+
+systemIDToRegion :: SolarSystemIDType -> IO (T.Text, RegionIDType)
+systemIDToRegion ssit =
+    getSystemMappings >>= return . flip systemIDToRegion' ssit
+
+systemIDsToRegion :: [SolarSystemIDType] -> IO [(T.Text, RegionIDType)]
+systemIDsToRegion ssit =
+    getSystemMappings >>= return . flip systemIDsToRegion' ssit
+
+
+-- generate 
