@@ -33,7 +33,6 @@ import Control.Exception
 
 import Constant
 import Types
-import XML
 import CREST
 import Util
 import Auth
@@ -148,28 +147,6 @@ stationToRegion stas sid =
     let ls = V.filter (\o -> o ^?! key "stationID" . _Number == sid) stas
     in if null ls then 0 else (V.head ls) ^?! key "regionID" . _Number
 
-getSystemPairs :: (Gideon (V.Vector SolarSystemPair) -> IO (V.Vector a))
-                -> (RegionIDType, T.Text)
-                -> V.Vector (T.Text, SolarSystemIDType)
-                -> Gideon (V.Vector a)
-getSystemPairs wrap (rid, rname) ssL = do
-    let findname sid sl = fst . fromJust . V.find (\t -> snd t == sid) $ sl
-    cons <- V.fromList <$> getConstellationsOfRegion rid
-    rss <- liftIO $ forConcurrently cons $ \(cid, _) -> wrap $ do
-        syss <- V.fromList <$> getSolarSystemsOfConstellation cid
-        return $ V.map (\(sid, _) -> SSP sid (findname sid ssL)) syss
-    return $ V.concat $ V.toList rss
-
-genAllSolarSystemsMap' :: Gideon (V.Vector RegionSystems)
-genAllSolarSystemsMap' = do
-    regionList <- V.fromList <$> getRegionList
-    ssList <- V.fromList <$> getSolarSystemList
-    au <- liftIO getAuthInfo
-    let wrapper1 = executeWithAuth au
-        wrapper2 = executeWithAuth au
-    liftIO $ forPool 10 regionList $ \(rname, rid) -> wrapper1 $
-        (RS rid rname <$> getSystemPairs wrapper2 (rid, rname) ssList)
-
 -- this function generates a file containing the hierarchy of Region > SolarSystems
 -- while ignoring the constellation betwwen them
 genAllSolarSystemsMap :: IO ()
@@ -189,6 +166,28 @@ getAllSystems = do
         let Just val = decode lbs :: Maybe Value
         return $ val ^.. _Array . traverse . key "rsSystems" .
             _Array . traverse . key "sspName" . _String
+
+getSystemPairs :: (Gideon (V.Vector SolarSystemPair) -> IO (V.Vector a))
+                -> (RegionIDType, T.Text)
+                -> V.Vector (T.Text, SolarSystemIDType)
+                -> Gideon (V.Vector a)
+getSystemPairs wrap (rid, _) ssL = do
+    let findname sid sl = fst . fromJust . V.find (\t -> snd t == sid) $ sl
+    cons <- V.fromList <$> getConstellationsOfRegion rid
+    rss <- liftIO $ forConcurrently cons $ \(cid, _) -> wrap $ do
+        syss <- V.fromList <$> getSolarSystemsOfConstellation cid
+        return $ V.map (\(sid, _) -> SSP sid (findname sid ssL)) syss
+    return $ V.concat $ V.toList rss
+
+genAllSolarSystemsMap' :: Gideon (V.Vector RegionSystems)
+genAllSolarSystemsMap' = do
+    regionList <- V.fromList <$> getRegionList
+    ssList <- V.fromList <$> getSolarSystemList
+    au <- liftIO getAuthInfo
+    let wrapper1 = executeWithAuth au
+        wrapper2 = executeWithAuth au
+    liftIO $ forPool 10 regionList $ \(rname, rid) -> wrapper1 $
+        (RS rid rname <$> getSystemPairs wrapper2 (rid, rname) ssList)
 
 completeSolarSystemName' :: [T.Text] -> T.Text -> [T.Text]
 completeSolarSystemName' solars prefix =
@@ -259,5 +258,39 @@ systemIDsToRegion :: [SolarSystemIDType] -> IO [(T.Text, RegionIDType)]
 systemIDsToRegion ssit =
     getSystemMappings >>= return . flip systemIDsToRegion' ssit
 
+-- generate mapping between items name and type id
+allItemsJson :: IO FilePath
+allItemsJson = (</> "allItems.json") <$> sdeExtractionPath
 
--- generate 
+type ItemMapping = HM.HashMap T.Text T.Text
+
+genAllItemsMap :: IO ()
+genAllItemsMap = do
+    src <- typeIDsYaml
+    dest <- allItemsJson
+    Just hm <- Y.decodeFile src :: IO (Maybe (HM.HashMap T.Text Value))
+    let val' = HM.map (\o -> o ^. key "name" . key "en" . _String) hm
+    LBS.writeFile dest (encodePretty val')
+
+getAllItemsName :: IO [T.Text]
+getAllItemsName = do
+    Just hm <- decode <$> (LBS.readFile =<< allItemsJson)
+        :: IO (Maybe (HM.HashMap T.Text T.Text))
+    return $ HM.elems hm
+
+completeItemName' :: [T.Text] -> T.Text -> [T.Text]
+completeItemName' = completeSolarSystemName'
+
+completeItemName :: T.Text -> IO [T.Text]
+completeItemName prefix = do
+    items <- getAllItemsName
+    return $ completeItemName' items prefix
+
+sanitizeItemName :: [T.Text] -> T.Text -> T.Text
+sanitizeItemName items t =
+    let candidates = completeItemName' items t
+    in if null candidates then error $ "No such Item name: " ++ T.unpack t
+        else head candidates
+
+sanitizeItemNames :: [T.Text] -> [T.Text] -> [T.Text]
+sanitizeItemNames items ts = map (sanitizeItemName items) ts
