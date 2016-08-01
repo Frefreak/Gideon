@@ -152,8 +152,10 @@ stationToRegion stas sid =
 genAllSolarSystemsMap :: IO ()
 genAllSolarSystemsMap = do
     fp <- allSolarSystemsJson
-    Right vrs <- execute genAllSolarSystemsMap'
-    LBS.writeFile fp (encodePretty vrs)
+    res <- execute genAllSolarSystemsMap'
+    case res of
+        Left err -> throwIO err
+        Right vrs -> LBS.writeFile fp (encodePretty vrs)
 
 allSolarSystemsJson :: IO FilePath
 allSolarSystemsJson = (</> "allSolarSystems.json") <$> sdeExtractionPath
@@ -186,7 +188,7 @@ genAllSolarSystemsMap' = do
     au <- liftIO getAuthInfo
     let wrapper1 = executeWithAuth au
         wrapper2 = executeWithAuth au
-    liftIO $ forPool 10 regionList $ \(rname, rid) -> wrapper1 $
+    liftIO $ forPool 7 regionList $ \(rname, rid) -> wrapper1 $
         (RS rid rname <$> getSystemPairs wrapper2 (rid, rname) ssList)
 
 completeSolarSystemName' :: [T.Text] -> T.Text -> [T.Text]
