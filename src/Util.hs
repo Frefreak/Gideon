@@ -3,16 +3,13 @@ module Util where
 import System.Random
 import System.Directory
 import System.FilePath
-import Control.Exception
 import System.Process
 import Data.List (intercalate)
 import qualified Data.Text as T
-import qualified Data.Text.IO as TIO
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import System.IO
 import Control.Monad
 {-import qualified Data.Vector as V-}
-import Data.Yaml
 import Control.Concurrent.MSem
 import Control.Concurrent.Async
 import qualified Data.Traversable as T
@@ -27,7 +24,7 @@ createAppRootifNeeded :: IO ()
 createAppRootifNeeded = getAppRoot >>= createDirectoryIfMissing False
 
 filterMap :: (a -> Bool) -> (a -> b) -> [a] -> [b]
-filterMap pred f ls = foldr (\i acc -> if pred i then f i : acc else acc) [] ls
+filterMap predi f = foldr (\i acc -> if predi i then f i : acc else acc) []
 
 -- require `xclip`
 getClipboard :: IO T.Text
@@ -46,7 +43,7 @@ setClipboard msg = do
         Nothing -> putStrLn "fail to set clipboard content"
 
 composeXMLUrl :: String -> Params -> String
-composeXMLUrl url params = composeUrl (xmlUrl ++ url) params
+composeXMLUrl url = composeUrl (xmlUrl ++ url)
 
 composeCRESTUrl :: String -> String
 composeCRESTUrl = (crestUrl ++)
@@ -55,8 +52,9 @@ composeUrl :: String -> Params -> String
 composeUrl baseUrl params = baseUrl </> "?" ++ paramString where
     paramString = intercalate "&" (map (\(a, b) -> a ++ "=" ++ b) params)
 
+-- scope is space delimited
 composeParams :: String -> String -> [String] -> String -> Params
-composeParams uri cid scope state = let scopes = intercalate " " scope
+composeParams uri cid scope state = let scopes = unwords scope
     in [("response_type", "code"), ("redirect_uri", uri),
         ("client_id", cid), ("scope", scopes), ("state", state)]
 
@@ -67,9 +65,9 @@ showJson s = do
     putStr j
 
 mapPool :: T.Traversable t => Int -> (a -> IO b) -> t a -> IO (t b)
-mapPool max f xs = do
-    sem <- new max
+mapPool ma f xs = do
+    sem <- new ma
     mapConcurrently (with sem . f) xs
 
 forPool :: T.Traversable t => Int -> t a -> (a -> IO b) -> IO (t b)
-forPool max = flip (mapPool max)
+forPool ma = flip (mapPool ma)

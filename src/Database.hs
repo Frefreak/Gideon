@@ -6,9 +6,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 module Database where
 
-import Database.Persist
 import Database.Persist.TH
-import Control.Monad.IO.Class (liftIO)
 
 share [mkPersist sqlSettings, mkSave "entityDefs", mkMigrate "migrateAll"] [persistLowerCase|
 Character

@@ -2,14 +2,11 @@
 -- everything related to Thera
 module Thera where
 
-import Data.Aeson
 import Data.Aeson.Lens
 import Network.Wreq
 import Control.Lens
-import Control.Monad
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as T
-import Control.Exception
 import Data.List ((\\))
 
 import Types
@@ -21,8 +18,7 @@ eveScoutApiWormholes = "https://www.eve-scout.com/api/wormholes"
 
 -- get Thera wormholes from eve-scout
 getWormholeLBS :: IO LBS.ByteString
-getWormholeLBS = do
-    get eveScoutApiWormholes >>= \r -> return $ r ^. responseBody
+getWormholeLBS = get eveScoutApiWormholes >>= \r -> return $ r ^. responseBody
 
 parseWormholeConnections :: LBS.ByteString -> [TheraWormholeConnection]
 parseWormholeConnections lbs =

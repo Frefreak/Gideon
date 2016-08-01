@@ -5,9 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Auth where
 
-import Data.List (intercalate)
 import System.Process
-import System.FilePath
 import System.Environment
 import Servant
 import Network.Wai.Handler.Warp
@@ -24,10 +22,10 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.Text as T
 import Data.Aeson
+import Data.Aeson.Types
 import Data.Aeson.Lens
 import GHC.Generics
 import Database.Persist.Sqlite
-import Database.Persist
 import Data.Scientific
 import qualified Data.Yaml as Y
 
@@ -81,29 +79,29 @@ saveCurrentUser n = do
 
 saveToken :: LBS.ByteString -> IO (Either SomeException String)
 saveToken r = do
-    let accessToken = r ^. key "access_token" . _String
+    let atk = r ^. key "access_token" . _String
         refreshToken = r ^. key "refresh_token" . _String
-    try (obtainCharacterInfo . T.unpack $ accessToken) >>= \char -> do
+    try (obtainCharacterInfo . T.unpack $ atk) >>= \char ->
         if isLeft char then let Left err = char in return (Left err) else do
             let Right char' = char
             sql <- getSqlUser
-            r <- try $ runSqlite sql $ do
+            tr <- try $ runSqlite sql $ do
                 runMigration migrateAll
                 insert $ Character (characterName char')
                     (show . coefficient $ characterID char')
-                            (T.unpack accessToken) (T.unpack refreshToken)
-            if isLeft r then let Left r' = r in return (Left r')
+                            (T.unpack atk) (T.unpack refreshToken)
+            if isLeft tr then let Left r' = tr in return (Left r')
                 else return (Right $ characterName char')
 
 updateToken :: LBS.ByteString -> IO ()
 updateToken r = do
-    let accessToken = r ^. key "access_token" . _String
+    let atk = r ^. key "access_token" . _String
         refreshToken = r ^. key "refresh_token" . _String
     sql <- getSqlUser
     runSqlite sql $ do
         runMigration migrateAll
         updateWhere [CharacterRefreshToken ==. T.unpack refreshToken]
-            [CharacterAccessToken =. T.unpack accessToken]
+            [CharacterAccessToken =. T.unpack atk]
 
 data CharacterInfo = CharacterInfo
     { characterID :: Scientific
@@ -122,10 +120,11 @@ instance FromJSON CharacterInfo where
                             v .: "Scopes" <*>
                             v .: "TokenType" <*>
                             v .: "CharacterOwnerHash"
+    parseJSON invalid = typeMismatch "CharacterInfo" invalid
 
 obtainCharacterInfo :: AccessTokenType -> IO CharacterInfo
-obtainCharacterInfo accessToken = do
-    let opts = gideonOpt & auth ?~ oauth2Bearer (BS.pack accessToken)
+obtainCharacterInfo atk = do
+    let opts = gideonOpt & auth ?~ oauth2Bearer (BS.pack atk)
     r <- getWith opts urlCharacterInfo
     return . fromJust . decode $ r ^. responseBody
 
@@ -137,10 +136,10 @@ getAccessTokenInitial = do
     createAppRootifNeeded
     sec <- getSecretKey
     uniqState <- generateRandomState
-    let authUrl = composeUrl urlSSO params
-        params = composeParams callbackUri clientID allScope uniqState
+    let authUrl = composeUrl urlSSO paras
+        paras = composeParams callbackUri clientID allScope uniqState
     h <- runCommand $ "xdg-open \"" ++ authUrl ++ "\""
-    waitForProcess h
+    _ <- waitForProcess h
     readyFlag <- newEmptyMVar
     tid <- forkIO $ run callbackPort $
                 serve callbackAPI (callbackServer sec readyFlag uniqState)
@@ -161,7 +160,7 @@ getAccessTokenRefresh refresh = do
             rr <- try $ updateToken (r' ^. responseBody)
             case rr of
                 Left e -> throwIO (SE e)
-                Right _ -> do
+                Right _ ->
                     return . T.unpack $ r' ^. responseBody
                         . key "access_token" . _String
 
@@ -187,12 +186,12 @@ getRefreshTokenDb username = characterRefreshToken <$> getCharacterDb username
 
 wrapAction :: Gideon a -> Gideon a
 wrapAction action = do
-    auth <- ask
-    r <- liftIO . try $ runGideon action auth
+    authinfo <- ask
+    r <- liftIO . try $ runGideon action authinfo
     case r of
         Left e@(StatusCodeException s _ _)
             | s ^. statusCode == 403 || s ^. statusCode == 401
-                || s ^. statusCode == 400 -> do
+                || s ^. statusCode == 400 ->
                 throwError $ InvalidTokenException (show e)
             | otherwise -> throwError $ HE e
         Left e' -> throwError (OE $ show e')
@@ -220,7 +219,7 @@ execute' action = do
         Right r' -> return r'
         Left (InvalidTokenException str) -> do
             liftIO $ putStrLn $ "\ESC[1;31mdebug\ESC[0m:\n" ++ str
-            liftIO $ getRefreshTokenDb (charName au) >>= getAccessTokenRefresh
+            _ <- liftIO $ getRefreshTokenDb (charName au) >>= getAccessTokenRefresh
             newAuth <- liftIO getAuthInfo
             rr <- liftIO $ runGideon action newAuth
             case rr of
@@ -230,18 +229,18 @@ execute' action = do
 
 execute :: Gideon a -> IO (Either GideonException a)
 execute action = do
-    auth <- try getAuthInfo
-    case auth of
-        Right auth -> runGideon (execute' action) auth
+    authinfo <- try getAuthInfo
+    case authinfo of
+        Right auth' -> runGideon (execute' action) auth'
         Left err -> return (Left err)
 
 -- unsafe mode, used in batch mode (no database query)
 executeWithAuth :: AuthInfo -> Gideon a -> IO a
-executeWithAuth auth action = do
-    r <- runGideon action auth
+executeWithAuth authinfo action = do
+    r <- runGideon action authinfo
     case r of
         Left err -> throwIO err
-        Right r -> return r
+        Right r' -> return r'
 
 switchAccount :: String -> IO ()
 switchAccount user = do

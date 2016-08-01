@@ -2,14 +2,11 @@
 module CREST.Character where
 
 import qualified Data.ByteString.Lazy.Char8 as LBS
-import qualified Data.ByteString.Char8 as BS
 import Control.Monad.Reader
 import Network.Wreq
 import Control.Lens.Operators
 import Control.Monad.IO.Class (liftIO)
 
-import Auth
-import Constant
 import Types
 import Util
 

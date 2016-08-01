@@ -10,7 +10,6 @@ import Data.Aeson
 import GHC.Generics
 import Network.HTTP.Client
 import Network.Wreq
-import Data.Default
 import Data.Scientific
 import qualified Data.Text as T
 

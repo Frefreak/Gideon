@@ -1,13 +1,9 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE OverloadedStrings #-}
 module EveTypes.Blueprints where
 
-import Control.Lens
-import Data.Aeson.Lens
 import Data.Aeson
 import System.FilePath
 import Data.Maybe

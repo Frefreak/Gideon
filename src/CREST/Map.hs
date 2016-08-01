@@ -2,31 +2,27 @@
 module CREST.Map where
 
 import qualified Data.ByteString.Lazy.Char8 as LBS
-import qualified Data.ByteString.Char8 as BS
 import Control.Monad.Reader
 import Network.Wreq
 import Control.Lens.Operators
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.Text as T
-import Data.Aeson
 import Data.Aeson.Lens
 import Control.Lens
 
-import Auth
-import Constant
 import Types
 import Util
 
 getRegions :: Gideon LBS.ByteString
 getRegions = do
     opts <- asks authOpt
-    r <- liftIO $ getWith opts $ composeCRESTUrl $ "regions/"
+    r <- liftIO $ getWith opts $ composeCRESTUrl "regions/"
     return $ r ^. responseBody
 
 getConstellations :: Gideon LBS.ByteString
 getConstellations = do
     opts <- asks authOpt
-    r <- liftIO $ getWith opts $ composeCRESTUrl $ "constellations/"
+    r <- liftIO $ getWith opts $ composeCRESTUrl "constellations/"
     return $ r ^. responseBody
 
 getRegionList :: Gideon [(T.Text, RegionIDType)]
@@ -63,7 +59,7 @@ getSolarSystemsOfConstellation cid = do
 getSolarSystems :: Gideon LBS.ByteString
 getSolarSystems = do
     opts <- asks authOpt
-    r <- liftIO $ getWith opts $ composeCRESTUrl $ "solarsystems/"
+    r <- liftIO $ getWith opts $ composeCRESTUrl "solarsystems/"
     return $ r ^. responseBody
 
 getSolarSystemList :: Gideon [(T.Text, SolarSystemIDType)]

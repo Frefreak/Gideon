@@ -2,21 +2,17 @@
 module CREST.Market where
 
 import qualified Data.ByteString.Lazy.Char8 as LBS
-import qualified Data.ByteString.Char8 as BS
-import Control.Monad.Reader
 import Network.Wreq
 import Control.Lens
-import Control.Monad.IO.Class
 import qualified Data.Text as T
 import Data.Aeson.Lens
 import Data.Scientific
 
-import Auth
-import Constant
 import Types
 import Util
 
-marketTypesUrl = composeCRESTUrl $ "market/types/"
+marketTypesUrl :: String
+marketTypesUrl = composeCRESTUrl "market/types/"
 
 getMarketType :: Options -> String -> IO String
 getMarketType opts tid = do

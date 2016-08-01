@@ -2,15 +2,12 @@
 module XML.Server where
 
 import qualified Data.ByteString.Lazy.Char8 as LBS
-import qualified Data.ByteString.Char8 as BS
 import Network.Wreq
 import Control.Monad.Reader
 import Control.Lens.Operators
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.Text as T
 
-import Auth
-import Constant
 import Types
 import Util
 
