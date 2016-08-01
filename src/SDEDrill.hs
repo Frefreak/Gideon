@@ -191,7 +191,7 @@ genAllSolarSystemsMap' = do
 
 -- TODO calculate string similarity and return the best result
 completeSolarSystemName' :: [T.Text] -> T.Text -> [T.Text]
-completeSolarSystemName' solars prefix =
+completeSolarSystemName' solars prefix = sortBy (compare `on` T.length) $
     filter (on T.isPrefixOf (T.map toLower) prefix) solars
 
 completeSolarSystemName :: T.Text -> IO [T.Text]
