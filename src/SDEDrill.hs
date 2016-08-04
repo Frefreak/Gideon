@@ -267,16 +267,22 @@ genAllItemsMap = do
     src <- typeIDsYaml
     dest <- allItemsJson
     Just hm <- Y.decodeFile src :: IO (Maybe (HM.HashMap T.Text Value))
-    let val' = HM.map (\o -> o ^. key "name" . key "en" . _String) hm
+    let val = HM.map (\o -> o ^. key "name" . key "en" . _String) hm
+        keys' = HM.keys val
+        elems' = HM.elems val
+        val' = HM.fromList $ zip elems' keys' :: ItemMapping
     LBS.writeFile dest (encodePretty val')
 
 getAllItemsName :: IO [T.Text]
-getAllItemsName = do
+getAllItemsName = HM.keys <$> getAllItemsMap
+
+getAllItemsMap :: IO ItemMapping
+getAllItemsMap = do
     exist <- allItemsJson >>= doesFileExist
     if not exist then error "Run genAllItemsMap first!" else do
         Just hm <- decode <$> (LBS.readFile =<< allItemsJson)
-            :: IO (Maybe (HM.HashMap T.Text T.Text))
-        return $ HM.elems hm
+            :: IO (Maybe ItemMapping)
+        return hm
 
 -- TODO calculate string similarity and return the best result
 completeItemName' :: [T.Text] -> T.Text -> [T.Text]
@@ -295,3 +301,20 @@ sanitizeItemName items t =
 
 sanitizeItemNames :: [T.Text] -> [T.Text] -> [T.Text]
 sanitizeItemNames items = map (sanitizeItemName items)
+
+-- use `getTypeName` in XML.Eve to map ID to Name
+
+itemNameToID' :: ItemMapping -> T.Text -> T.Text
+itemNameToID' im name =
+    let items = HM.keys im
+        name' = sanitizeItemName items name
+    in fromJust $ name' `HM.lookup` im
+
+itemNamesToID' :: ItemMapping -> [T.Text] -> [T.Text]
+itemNamesToID' im = map $ itemNameToID' im
+
+itemNameToID :: T.Text -> IO T.Text
+itemNameToID name = (`itemNameToID'` name) <$> getAllItemsMap
+
+itemNamesToID :: [T.Text] -> IO [T.Text]
+itemNamesToID names = (`itemNamesToID'` names) <$> getAllItemsMap

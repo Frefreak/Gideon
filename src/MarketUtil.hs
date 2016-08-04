@@ -19,6 +19,7 @@ import CREST
 import Types
 import SDEDrill
 import Terminal
+import Util
 
 getOptimalOrder :: (MarketOrder -> MarketOrder -> Ordering) -> [MarketOrder] -> MarketOrder
 getOptimalOrder = minimumBy
@@ -36,12 +37,11 @@ reportBuyOrderStatus' :: Gideon [(MarketOrder, MarketOrder)]
 reportBuyOrderStatus' = do
     Just stas <- liftIO getStations
     myorders <- extractAllMyBuyOrders
-    opts <- asks authOpt
-    sem <- liftIO $ new (150 :: Int)
-    liftIO $ fmap catMaybes $ forConcurrently myorders $ with sem . \order -> do
+    wrapper <- executeWithAuth <$> ask
+    liftIO $ fmap catMaybes $ forPool 150 myorders $ \order -> wrapper $ do
         let region = stationToRegion stas (read . T.unpack $ moStationID order)
         if region == 0 then return Nothing else do
-            orders <- getMarketBuyOrders opts region (T.unpack $ moTypeID order)
+            orders <- getMarketBuyOrders region (T.unpack $ moTypeID order)
             return . Just $ (order, getBestBuyOrder .
                 filter (\o -> moStationID o == moStationID order) $ orders)
 
@@ -83,12 +83,11 @@ reportSellOrderStatus' :: Gideon [(MarketOrder, MarketOrder)]
 reportSellOrderStatus' = do
     Just stas <- liftIO getStations
     myorders <- extractAllMySellOrders
-    opts <- asks authOpt
-    sem <- liftIO $ new (150 :: Int)
-    liftIO $ fmap catMaybes $ forConcurrently myorders $ with sem . \order -> do
+    wrapper <- executeWithAuth <$> ask
+    liftIO $ fmap catMaybes $ forPool 150 myorders $ \order -> wrapper $ do
         let region = stationToRegion stas (read . T.unpack $ moStationID order)
         if region == 0 then return Nothing else do
-            orders <- getMarketSellOrders opts region (T.unpack $ moTypeID order)
+            orders <- getMarketSellOrders region (T.unpack $ moTypeID order)
             return . Just $ (order, getBestSellOrder .
                 filter (\o -> moStationID o == moStationID order) $ orders)
 

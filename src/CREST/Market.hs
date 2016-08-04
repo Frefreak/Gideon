@@ -7,6 +7,7 @@ import Control.Lens
 import qualified Data.Text as T
 import Data.Aeson.Lens
 import Data.Scientific
+import Control.Monad.Reader
 
 import Types
 import Util
@@ -14,21 +15,24 @@ import Util
 marketTypesUrl :: String
 marketTypesUrl = composeCRESTUrl "market/types/"
 
-getMarketType :: Options -> String -> IO String
-getMarketType opts tid = do
-    r <- getWith opts $ composeCRESTUrl $ "market/types/" ++ tid ++ "/"
+getMarketType :: String -> Gideon String
+getMarketType tid = do
+    opts <- asks authOpt
+    r <- liftIO . getWith opts $ composeCRESTUrl $ "market/types/" ++ tid ++ "/"
     return . T.unpack $ r ^. responseBody . key "type" . key "href" . _String
 
-getMarketBuyOrders' :: Options -> RegionIDType -> String -> IO LBS.ByteString
-getMarketBuyOrders' opts rid tid = do
-    href <- getMarketType opts tid
-    r <- getWith opts $ composeCRESTUrl $ "market/" ++ show (coefficient rid)
+getMarketBuyOrders' :: RegionIDType -> String -> Gideon LBS.ByteString
+getMarketBuyOrders' rid tid = do
+    opts <- asks authOpt
+    href <- getMarketType tid
+    r <- liftIO $
+        getWith opts $ composeCRESTUrl $ "market/" ++ show (coefficient rid)
         ++ "/orders/buy/?type=" ++ href
     return $ r ^. responseBody
 
-getMarketBuyOrders :: Options -> RegionIDType -> String -> IO [MarketOrder]
-getMarketBuyOrders opts rid tid = do
-    lbs <- getMarketBuyOrders' opts rid tid
+getMarketBuyOrders :: RegionIDType -> String -> Gideon [MarketOrder]
+getMarketBuyOrders rid tid = do
+    lbs <- getMarketBuyOrders' rid tid
     return $ lbs ^.. key "items" . _Array . traverse . to (\o ->
         MarketOrder (o ^. key "location" . key "id_str" . _String)
                     (round $ o ^?! key "volumeEntered" . _Number)
@@ -38,16 +42,18 @@ getMarketBuyOrders opts rid tid = do
                     (o ^. key "id_str" . _String)
                 )
 
-getMarketSellOrders' :: Options -> RegionIDType -> String -> IO LBS.ByteString
-getMarketSellOrders' opts rid tid = do
-    href <- getMarketType opts tid
-    r <- getWith opts $ composeCRESTUrl $ "market/" ++ show (coefficient rid)
+getMarketSellOrders' :: RegionIDType -> String -> Gideon LBS.ByteString
+getMarketSellOrders' rid tid = do
+    opts <- asks authOpt
+    href <- getMarketType tid
+    r <- liftIO $
+        getWith opts $ composeCRESTUrl $ "market/" ++ show (coefficient rid)
         ++ "/orders/sell/?type=" ++ href
     return $ r ^. responseBody
 
-getMarketSellOrders :: Options -> RegionIDType -> String -> IO [MarketOrder]
-getMarketSellOrders opts rid tid = do
-    lbs <- getMarketSellOrders' opts rid tid
+getMarketSellOrders :: RegionIDType -> String -> Gideon [MarketOrder]
+getMarketSellOrders rid tid = do
+    lbs <- getMarketSellOrders' rid tid
     return $ lbs ^.. key "items" . _Array . traverse . to (\o ->
         MarketOrder (o ^. key "location" . key "id_str" . _String)
                     (round $ o ^?! key "volumeEntered" . _Number)
