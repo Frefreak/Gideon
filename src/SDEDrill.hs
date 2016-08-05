@@ -28,6 +28,7 @@ import Data.Function
 import Data.Char (toLower)
 import qualified Data.HashMap.Lazy as HM
 import Control.Exception
+import Control.Arrow ((&&&))
 
 import Constant
 import Types
@@ -161,7 +162,7 @@ allSolarSystemsJson = (</> "allSolarSystems.json") <$> sdeExtractionPath
 getAllSystems :: IO [T.Text]
 getAllSystems = do
     exist <- allSolarSystemsJson >>= doesFileExist
-    if not exist then error "Run gen AllSystemsMap first!" else do
+    if not exist then error "Run genAllSystemsMap first!" else do
         lbs <- allSolarSystemsJson >>= LBS.readFile
         let Just val = decode lbs :: Maybe Value
         return $ val ^.. _Array . traverse . key "rsSystems" .
@@ -256,6 +257,55 @@ systemIDToRegion ssit = fmap (`systemIDToRegion'` ssit) getSystemMappings
 systemIDsToRegion :: [SolarSystemIDType] -> IO [(T.Text, RegionIDType)]
 systemIDsToRegion ssit = fmap (`systemIDsToRegion'` ssit) getSystemMappings 
 
+genSystemNameIDMap :: IO ()
+genSystemNameIDMap = do
+    dest <- systemNameIDJson
+    Just (val :: Value) <- decode <$> (allSolarSystemsJson >>= LBS.readFile)
+    let result = val ^.. _Array . traverse . key "rsSystems" . _Array . traverse
+                . to (\o -> (o ^. key "sspName" . _String,
+                            o ^?! key "sspID" . _Number))
+    LBS.writeFile dest (encodePretty $ HM.fromList result)
+
+systemNameToID' :: T.Text -> IO Scientific
+systemNameToID' n = do
+    exist <- systemNameIDJson >>= doesFileExist
+    if not exist
+        then error "Run genSystemNamesIDMap first"
+        else do
+            Just val <- decode <$> (systemNameIDJson >>= LBS.readFile)
+            case n `HM.lookup` val of
+                Just a -> return a
+                Nothing -> error "should not happen"
+
+systemNamesToID' :: [T.Text] -> IO [Scientific]
+systemNamesToID' n = do
+    exist <- systemNameIDJson >>= doesFileExist
+    if not exist
+        then error "Run genSystemNamesIDMap first"
+        else do
+            Just val <- decode <$> (systemNameIDJson >>= LBS.readFile)
+            mapM (helper val) n
+              where
+                helper v n' =
+                    case n' `HM.lookup` v of
+                        Just sid -> return sid
+                        Nothing -> error "should not happen"
+
+systemNameToID :: T.Text -> IO Scientific
+systemNameToID n = do
+    sys <- getAllSystems
+    let n' = sanitizeSystemName sys n
+    systemNameToID' n'
+
+systemNamesToID :: [T.Text] -> IO [Scientific]
+systemNamesToID ns = do
+    sys <- getAllSystems
+    let ns' = sanitizeSystemNames sys ns
+    systemNamesToID' ns'
+
+systemNameIDJson :: IO FilePath
+systemNameIDJson = (</> "systemNameID.json") <$> sdeExtractionPath
+
 -- generate mapping between items name and type id
 allItemsJson :: IO FilePath
 allItemsJson = (</> "allItems.json") <$> sdeExtractionPath
@@ -318,3 +368,30 @@ itemNameToID name = (`itemNameToID'` name) <$> getAllItemsMap
 
 itemNamesToID :: [T.Text] -> IO [T.Text]
 itemNamesToID names = (`itemNamesToID'` names) <$> getAllItemsMap
+
+allStationsJson :: IO FilePath
+allStationsJson = (</> "allStations.json") <$> sdeExtractionPath
+
+genStationsSystemMap :: IO ()
+genStationsSystemMap = do
+    dest <- allStationsJson
+    yml <- staStationsYaml
+    Just (val :: Value) <- Y.decodeFile yml
+    let mapping = foldr genHM HM.empty (val ^. _Array)
+        genHM o =
+            let sysID = showSci $ o ^?! key "solarSystemID" . _Number
+                staID = showSci $ o ^?! key "stationID" . _Number
+            in HM.insertWith (++) sysID [staID]
+    LBS.writeFile dest $ encodePretty mapping
+
+getStationsOfSystemID :: Scientific -> IO [T.Text]
+getStationsOfSystemID sid = do
+    exist <- allStationsJson >>= doesFileExist
+    if not exist
+        then error "Run genStationsSystemMap first!"
+        else do
+            Just (val :: Value) <- decode <$> (allStationsJson >>= LBS.readFile)
+            return $ val ^.. key (T.pack $ showSci sid) . _Array .
+                traverse . _String
+
+    
