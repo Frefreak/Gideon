@@ -66,6 +66,7 @@ type Params = [Param]
 
 data MarketOrder = MarketOrder
     { moStationID :: T.Text
+    , moStationName :: T.Text
     , moVolEntered :: Int
     , moVolRemaining :: Int
     , moTypeID :: T.Text

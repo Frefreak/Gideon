@@ -35,6 +35,7 @@ getMarketBuyOrders rid tid = do
     lbs <- getMarketBuyOrders' rid tid
     return $ lbs ^.. key "items" . _Array . traverse . to (\o ->
         MarketOrder (o ^. key "location" . key "id_str" . _String)
+                    (o ^. key "location" . key "name" . _String)
                     (round $ o ^?! key "volumeEntered" . _Number)
                     (round $ o ^?! key "volume" . _Number)
                     (o ^. key "type" . key "id_str" . _String)
@@ -56,9 +57,11 @@ getMarketSellOrders rid tid = do
     lbs <- getMarketSellOrders' rid tid
     return $ lbs ^.. key "items" . _Array . traverse . to (\o ->
         MarketOrder (o ^. key "location" . key "id_str" . _String)
+                    (o ^. key "location" . key "name" . _String)
                     (round $ o ^?! key "volumeEntered" . _Number)
                     (round $ o ^?! key "volume" . _Number)
                     (o ^. key "type" . key "id_str" . _String)
                     (toRealFloat $ o ^?! key "price" . _Number)
                     (o ^. key "id_str" . _String)
                 )
+

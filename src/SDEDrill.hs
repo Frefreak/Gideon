@@ -28,7 +28,6 @@ import Data.Function
 import Data.Char (toLower)
 import qualified Data.HashMap.Lazy as HM
 import Control.Exception
-import Control.Arrow ((&&&))
 
 import Constant
 import Types
@@ -377,12 +376,12 @@ genStationsSystemMap = do
     dest <- allStationsJson
     yml <- staStationsYaml
     Just (val :: Value) <- Y.decodeFile yml
-    let mapping = foldr genHM HM.empty (val ^. _Array)
+    let maps = foldr genHM HM.empty (val ^. _Array)
         genHM o =
             let sysID = showSci $ o ^?! key "solarSystemID" . _Number
                 staID = showSci $ o ^?! key "stationID" . _Number
             in HM.insertWith (++) sysID [staID]
-    LBS.writeFile dest $ encodePretty mapping
+    LBS.writeFile dest $ encodePretty maps
 
 getStationsOfSystemID :: Scientific -> IO [T.Text]
 getStationsOfSystemID sid = do

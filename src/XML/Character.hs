@@ -33,6 +33,7 @@ extractMyOrders bid lbs =
     in cursor $/ element "result" &/ element "rowset" &/ element "row"
         >=> attributeIs "orderState" "0" >=> attributeIs "bid" bid >=> \c ->
         MarketOrder <$> attribute "stationID" c <*>
+                        pure "" <*>
                         (read . T.unpack <$> attribute "volEntered" c) <*>
                         (read . T.unpack <$> attribute "volRemaining" c) <*>
                         attribute "typeID" c <*>

@@ -8,8 +8,6 @@ import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader
 import qualified Data.Text as T
-import Control.Concurrent.Async
-import Control.Concurrent.MSem
 import Data.Maybe
 import Text.Printf
 
@@ -24,11 +22,17 @@ import Util
 getOptimalOrder :: (MarketOrder -> MarketOrder -> Ordering) -> [MarketOrder] -> MarketOrder
 getOptimalOrder = minimumBy
 
+marketOrderSellCompare :: MarketOrder -> MarketOrder -> Ordering
+marketOrderSellCompare = \a b -> compare (moPrice a) (moPrice b)
+
+marketOrderBuyCompare :: MarketOrder -> MarketOrder -> Ordering
+marketOrderBuyCompare = \a b -> compare (moPrice b) (moPrice a)
+
 getBestSellOrder :: [MarketOrder] -> MarketOrder
-getBestSellOrder = getOptimalOrder (\a b -> compare (moPrice a) (moPrice b))
+getBestSellOrder = getOptimalOrder marketOrderSellCompare
 
 getBestBuyOrder :: [MarketOrder] -> MarketOrder
-getBestBuyOrder = getOptimalOrder (\a b -> compare (moPrice b) (moPrice a))
+getBestBuyOrder = getOptimalOrder marketOrderBuyCompare
 
 quickfind :: [(T.Text, T.Text)] -> MarketOrder -> T.Text
 quickfind tns o = let tid = moTypeID o in fromMaybe tid $ lookup tid tns
@@ -40,7 +44,7 @@ reportBuyOrderStatus' = do
     wrapper <- executeWithAuth <$> ask
     liftIO $ fmap catMaybes $ forPool 150 myorders $ \order -> wrapper $ do
         let region = stationToRegion stas (read . T.unpack $ moStationID order)
-        if region == 0 then return Nothing else do
+        if region == 0 then return $ Just (order, order) else do
             orders <- getMarketBuyOrders region (T.unpack $ moTypeID order)
             return . Just $ (order, getBestBuyOrder .
                 filter (\o -> moStationID o == moStationID order) $ orders)
@@ -86,7 +90,7 @@ reportSellOrderStatus' = do
     wrapper <- executeWithAuth <$> ask
     liftIO $ fmap catMaybes $ forPool 150 myorders $ \order -> wrapper $ do
         let region = stationToRegion stas (read . T.unpack $ moStationID order)
-        if region == 0 then return Nothing else do
+        if region == 0 then return $ Just (order, order) else do
             orders <- getMarketSellOrders region (T.unpack $ moTypeID order)
             return . Just $ (order, getBestSellOrder .
                 filter (\o -> moStationID o == moStationID order) $ orders)
@@ -125,3 +129,18 @@ reportSellAndBuyOrderStatus = do
     reportBuyOrderStatus
     putStrLn ""
     reportSellOrderStatus
+
+
+lookupItemSellOrdersInSystem :: T.Text -> T.Text -> Gideon [MarketOrder]
+lookupItemSellOrdersInSystem item sys = do
+    allSys <- liftIO getAllSystems
+    let sysName = sanitizeSystemName allSys sys
+    (_, rid) <- liftIO $ systemNameToRegion sysName
+    tid <- liftIO $ itemNameToID item
+    orders <- getMarketSellOrders rid (T.unpack tid)
+    return $ filter (\mo -> sysName `T.isPrefixOf` moStationName mo) orders
+
+lookupItemBestSellOrderInSystem :: T.Text -> T.Text -> Int -> Gideon [MarketOrder]
+lookupItemBestSellOrderInSystem item sys n =
+    take n . sortBy marketOrderSellCompare <$>
+        lookupItemSellOrdersInSystem item sys
