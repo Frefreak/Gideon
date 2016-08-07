@@ -140,7 +140,20 @@ lookupItemSellOrdersInSystem item sys = do
     orders <- getMarketSellOrders rid (T.unpack tid)
     return $ filter (\mo -> sysName `T.isPrefixOf` moStationName mo) orders
 
-lookupItemBestSellOrderInSystem :: T.Text -> T.Text -> Int -> Gideon [MarketOrder]
-lookupItemBestSellOrderInSystem item sys n =
-    take n . sortBy marketOrderSellCompare <$>
-        lookupItemSellOrdersInSystem item sys
+lookupItemSellOrdersInSystemSorted :: T.Text -> T.Text -> Gideon [MarketOrder]
+lookupItemSellOrdersInSystemSorted item sys =
+    sortBy marketOrderSellCompare <$> lookupItemSellOrdersInSystem item sys
+
+-- TODO to be optimized
+lookupItemSellOrdersInSystems :: T.Text -> [T.Text] -> Gideon [MarketOrder]
+lookupItemSellOrdersInSystems item sys =
+    concat <$> mapM (lookupItemSellOrdersInSystem item) sys
+
+lookupItemSellOrdersInSystemsSorted ::
+    T.Text -> [T.Text] -> Gideon [MarketOrder]
+lookupItemSellOrdersInSystemsSorted item sys =
+    sortBy marketOrderSellCompare <$> lookupItemSellOrdersInSystems item sys
+
+lookupItemNBestSellOrderInSystem :: T.Text -> T.Text -> Int -> Gideon [MarketOrder]
+lookupItemNBestSellOrderInSystem item sys n =
+    take n <$> lookupItemSellOrdersInSystemSorted item sys

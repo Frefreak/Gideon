@@ -65,6 +65,7 @@ library
                      , vector
                      , containers
                      , async
+                     , lifted-async
                      , ansi-terminal
                      , SafeSemaphore
                      , aeson-pretty

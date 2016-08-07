@@ -9,6 +9,7 @@ import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import Data.Maybe
 import Data.Either
+import Data.Monoid
 import Control.Lens
 import Data.Aeson.Lens
 import qualified Data.Yaml as Y
@@ -184,12 +185,11 @@ genAllSolarSystemsMap' = do
     regionList <- V.fromList <$> getRegionList
     ssList <- V.fromList <$> getSolarSystemList
     auth <- liftIO getAuthInfo
-    let wrapper1 = executeWithAuth auth
-        wrapper2 = executeWithAuth auth
-    liftIO $ forPool 7 regionList $ \(rname, rid) -> wrapper1
-        (RS rid rname <$> getSystemPairs wrapper2 (rid, rname) ssList)
+    let wrapper :: Gideon a -> IO a
+        wrapper = executeWithAuth auth
+    liftIO $ forPool 7 regionList $ \(rname, rid) -> wrapper
+        (RS rid rname <$> getSystemPairs wrapper (rid, rname) ssList)
 
--- TODO calculate string similarity and return the best result
 completeSolarSystemName' :: [T.Text] -> T.Text -> [T.Text]
 completeSolarSystemName' solars prefix = sortBy (compare `on` T.length) $
     filter (on T.isPrefixOf (T.map toLower) prefix) solars
@@ -202,11 +202,18 @@ completeSolarSystemName prefix = do
 sanitizeSystemName :: [T.Text] -> T.Text -> T.Text
 sanitizeSystemName solars t =
     let candidates = completeSolarSystemName' solars t
-    in if null candidates then error $ "No such system name: " ++ T.unpack t
+    in if null candidates
+        then throw . InvalidArgument $ "No such system name: " <> t
         else head candidates
 
 sanitizeSystemNames :: [T.Text] -> [T.Text] -> [T.Text]
 sanitizeSystemNames solars = map (sanitizeSystemName solars)
+
+sanitizeSystemNameIO :: T.Text -> IO T.Text
+sanitizeSystemNameIO sys = flip sanitizeSystemName sys <$> getAllSystems
+
+sanitizeSystemNamesIO :: [T.Text] -> IO [T.Text]
+sanitizeSystemNamesIO sys = flip sanitizeSystemNames sys <$> getAllSystems
 
 type SystemMapping =
     HM.HashMap (T.Text, RegionIDType) [(T.Text, SolarSystemIDType)]
@@ -333,7 +340,6 @@ getAllItemsMap = do
             :: IO (Maybe ItemMapping)
         return hm
 
--- TODO calculate string similarity and return the best result
 completeItemName' :: [T.Text] -> T.Text -> [T.Text]
 completeItemName' = completeSolarSystemName'
 
@@ -342,10 +348,14 @@ completeItemName prefix = do
     items <- getAllItemsName
     return $ completeItemName' items prefix
 
+sanitizeItemNameIO :: T.Text -> IO T.Text
+sanitizeItemNameIO t = flip sanitizeItemName t <$> getAllItemsName
+
 sanitizeItemName :: [T.Text] -> T.Text -> T.Text
 sanitizeItemName items t =
     let candidates = completeItemName' items t
-    in if null candidates then error $ "No such Item name: " ++ T.unpack t
+    in if null candidates
+        then throw . InvalidArgument $ "No such Item name: " <> t
         else head candidates
 
 sanitizeItemNames :: [T.Text] -> [T.Text] -> [T.Text]
@@ -393,4 +403,4 @@ getStationsOfSystemID sid = do
             return $ val ^.. key (T.pack $ showSci sid) . _Array .
                 traverse . _String
 
-    
+-- TODO cleanup/merge single query and multiple query functions
