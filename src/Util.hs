@@ -12,7 +12,6 @@ import Control.Monad
 {-import qualified Data.Vector as V-}
 import Control.Concurrent.MSem
 import Control.Concurrent.Async
-import qualified Data.Traversable as T
 
 import Constant
 import Types
@@ -64,10 +63,10 @@ showJson s = do
     j <- readProcess "jsonFormatter" [] []
     putStr j
 
-mapPool :: T.Traversable t => Int -> (a -> IO b) -> t a -> IO (t b)
+mapPool :: Traversable t => Int -> (a -> IO b) -> t a -> IO (t b)
 mapPool ma f xs = do
     sem <- new ma
     mapConcurrently (with sem . f) xs
 
-forPool :: T.Traversable t => Int -> t a -> (a -> IO b) -> IO (t b)
+forPool :: Traversable t => Int -> t a -> (a -> IO b) -> IO (t b)
 forPool ma = flip (mapPool ma)
